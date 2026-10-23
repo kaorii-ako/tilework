@@ -1,0 +1,42 @@
+# Agent Canvas: product brief
+
+Read this before touching the code. "Agent Canvas" is a working name.
+
+## What it is
+
+A Linux desktop app for running many coding agents side by side. Each agent (Claude Code, Codex, Gemini CLI, or just a shell) lives in a real terminal tile backed by a real PTY, not an imitation of one. Tiles sit on an infinite canvas you can pan, zoom and arrange however you like. The point is to see at a glance which agents are busy, which are idle, and which are blocked waiting for you.
+
+It is inspired by a Mac-only app, but it is its own product with its own name, look and words.
+
+## Original branding only
+
+Never copy another product's name, logo, icons, UI copy, layouts or screenshots. Write our own text and design our own visuals. If you are unsure whether something is too close, make it different.
+
+## MVP (tonight)
+
+| Issue | What |
+| -- | -- |
+| KAO-21 | App shell with one real terminal tile (done) |
+| KAO-22 | Infinite canvas: pan, drag, resize, multi-tile focus |
+| KAO-23 | Spike: zooming xterm.js without blurry text or broken mouse hit-testing |
+| KAO-24 | Live status per tile from Claude Code hooks |
+| KAO-25 | "New tile" launcher with presets (claude, codex, gemini, shell) and a working folder |
+| KAO-26 | Save and restore the layout between launches |
+| KAO-28 | editorconfig, Prettier and lint scripts |
+
+## Later
+
+Handoffs between tiles, loops, a voice planner, per-repo "studios", AppImage packaging.
+
+## Architecture
+
+Electron + electron-vite, React, TypeScript (strict).
+
+- **Main process** (`src/main`). `PtyManager` wraps node-pty and keeps a `Map<tileId, IPty>`. A tile with no `command` gets the user's `$SHELL` (fallback `/bin/bash`) as a login shell (`-l`). Every PTY gets `AGENT_CANVAS_TILE_ID=<tileId>` in its env, which the status hooks (KAO-24) use to report back. Spawning an existing tileId replaces its PTY. All PTYs are killed on quit.
+- **IPC** (`src/shared/ipc.ts`). The only place channels and payloads are defined:
+  - renderer → main: `pty:spawn {tileId, command?, args?, cwd?, cols, rows}` (invoke), `pty:input {tileId, data}`, `pty:resize {tileId, cols, rows}`, `pty:kill {tileId}`
+  - main → renderer: `pty:data {tileId, data}`, `pty:exit {tileId, code}`
+- **Preload** (`src/preload`). Exposes `window.canvasApi` (type `CanvasApi`) via contextBridge. contextIsolation on, nodeIntegration off, sandbox on. It is built as CommonJS because sandboxed preloads must be.
+- **Renderer** (`src/renderer`). `<TerminalTile tileId command args cwd />` uses @xterm/xterm, the fit addon and the WebGL addon (falling back to the DOM renderer). A ResizeObserver refits it, and xterm's `onResize` sends the new cols and rows to the PTY.
+- **Shared types** (`src/shared/types.ts`). `Tile {id, title, command?, cwd?, x, y, w, h}` is the single shape the canvas, launcher and persistence all use. Extend it there; don't fork it.
+- node-pty is a native module, rebuilt for Electron's ABI by `electron-builder install-app-deps` in `postinstall`.

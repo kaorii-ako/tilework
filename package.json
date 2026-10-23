@@ -1,0 +1,49 @@
+{
+  "name": "agent-canvas",
+  "version": "0.1.0",
+  "description": "An infinite canvas of real terminal tiles for coding agents",
+  "main": "out/main/index.js",
+  "scripts": {
+    "dev": "electron-vite dev -- --ozone-platform-hint=auto",
+    "build": "electron-vite build",
+    "start": "electron-vite preview -- --ozone-platform-hint=auto",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "postinstall": "install-electron && electron-builder install-app-deps"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kaorii-ako/agent-canvas.git"
+  },
+  "license": "UNLICENSED",
+  "type": "module",
+  "bugs": {
+    "url": "https://github.com/kaorii-ako/agent-canvas/issues"
+  },
+  "homepage": "https://github.com/kaorii-ako/agent-canvas#readme",
+  "dependencies": {
+    "@xterm/addon-fit": "^0.11.0",
+    "@xterm/addon-webgl": "^0.19.0",
+    "@xterm/xterm": "^6.0.0",
+    "node-pty": "^1.1.0",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.5",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.1.2",
+    "electron": "^45.0.0",
+    "electron-builder": "^26.15.3",
+    "electron-vite": "^6.0.0",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.5",
+    "vitest": "^5.0.5"
+  },
+  "allowScripts": {
+    "node-pty@1.1.0": true,
+    "electron-winstaller": false
+  },
+  "private": true
+}
