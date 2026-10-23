@@ -1,12 +1,16 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useShallow } from 'zustand/react/shallow'
 import { NEW_TILE, canvasStore, placeNewTile, useCanvas, type CanvasState } from './store'
 import { createSpaceGesture } from './spaceGesture'
 import { TileFrame } from './TileFrame'
+import { Launcher, type LaunchChoice } from '../Launcher'
 
 const isTerminal = (t: EventTarget | null) => t instanceof HTMLElement && t.classList.contains('xterm-helper-textarea')
-const isTextField = (t: EventTarget | null) =>
-  t instanceof HTMLElement && !isTerminal(t) && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))
+/** Form controls keep their own space key (typing, pressing a button). */
+const isFormField = (t: EventTarget | null) =>
+  t instanceof HTMLElement &&
+  !isTerminal(t) &&
+  (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT|BUTTON)$/.test(t.tagName))
 const isBackground = (t: EventTarget | null) => t instanceof Element && !t.closest('.tile')
 
 /**
@@ -18,6 +22,7 @@ export function Canvas() {
   const world = useRef<HTMLDivElement>(null)
   const pan = useRef<{ x: number; y: number } | null>(null)
   const tileIds = useCanvas(useShallow((s) => s.tiles.map((t) => t.id)))
+  const [launcherOpen, setLauncherOpen] = useState(false)
 
   useEffect(() => {
     const el = surface.current!
@@ -39,7 +44,14 @@ export function Canvas() {
 
     // Capture phase on window, so this runs before xterm sees the key.
     const onKeyDown = (e: KeyboardEvent) => {
-      if (e.isComposing || isTextField(e.target)) return
+      // Ctrl+Shift+N opens the launcher. Capture phase, so a focused xterm can't eat it.
+      if (e.ctrlKey && e.shiftKey && e.code === 'KeyN') {
+        e.preventDefault()
+        e.stopPropagation()
+        setLauncherOpen(true)
+        return
+      }
+      if (e.isComposing || isFormField(e.target)) return
       if (gesture.keyDown(plainSpace(e))) {
         e.preventDefault()
         e.stopPropagation()
@@ -124,12 +136,22 @@ export function Canvas() {
     }
   }, [])
 
-  // ponytail: temporary; KAO-25's launcher replaces this button.
-  const newShell = () => {
+  const launch = ({ preset, cwd, title }: LaunchChoice) => {
+    setLauncherOpen(false)
     const s = canvasStore.getState()
     const r = surface.current!.getBoundingClientRect()
     const pos = placeNewTile(s.viewport, { w: r.width, h: r.height }, s.tiles)
-    s.addTile({ id: crypto.randomUUID(), title: 'shell', ...pos, ...NEW_TILE })
+    s.addTile({
+      id: crypto.randomUUID(),
+      title: title ?? preset.name,
+      command: preset.command,
+      args: preset.args,
+      shell: preset.shell,
+      presetId: preset.id,
+      cwd,
+      ...pos,
+      ...NEW_TILE
+    })
   }
 
   return (
@@ -142,10 +164,11 @@ export function Canvas() {
         </div>
       </div>
       <div className="toolbar">
-        <button type="button" onClick={newShell} title="New shell tile">
-          + Shell
+        <button type="button" onClick={() => setLauncherOpen(true)} title="New tile (Ctrl+Shift+N)">
+          + New tile
         </button>
       </div>
+      {launcherOpen && <Launcher onLaunch={launch} onClose={() => setLauncherOpen(false)} />}
     </div>
   )
 }

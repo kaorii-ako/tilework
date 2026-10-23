@@ -76,7 +76,7 @@ export const TileFrame = memo(function TileFrame({ id }: { id: string }) {
     >
       <header className="tile-bar" onPointerDown={startDrag('move')}>
         <span className="tile-title">{tile.title}</span>
-        <TileStatus tileId={id} spawnKey={`${tile.command ?? ''}\0${tile.cwd ?? ''}`} />
+        <TileStatus tileId={id} spawnKey={JSON.stringify([tile.command, tile.args, tile.shell, tile.cwd])} />
         <button
           type="button"
           className="tile-close"
@@ -87,7 +87,7 @@ export const TileFrame = memo(function TileFrame({ id }: { id: string }) {
           ×
         </button>
       </header>
-      <TerminalTile tileId={id} command={tile.command} cwd={tile.cwd} live={live} />
+      <TerminalTile tileId={id} command={tile.command} args={tile.args} shell={tile.shell} cwd={tile.cwd} live={live} />
       <div className="tile-resize" onPointerDown={startDrag('resize')} />
     </section>
   )

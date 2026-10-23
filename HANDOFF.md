@@ -1,21 +1,30 @@
 # Handoff
 
-Updated 2026-10-23, after KAO-22 with zoom (PR #5 open, not merged).
+Updated 2026-10-23, when merging #3 (KAO-25).
 
 ## Where things stand
-- KAO-21 is done and on main.
-- KAO-22's canvas is in PR #5 on branch `79807/kao-22-infinite-canvas-pan-zoom-drag-and-resize-tiles`. It has pan (space+drag, middle-drag, two-finger scroll), tile drag and resize, click to focus and raise, a "+ Shell" button and a close button.
-- Zoom uses the hybrid approach Kao picked from the KAO-23 spike: ctrl+wheel around the cursor, live xterm only at 100%, and plain-text snapshots otherwise. Clicking a snapshot zooms to that tile.
-- Canvas state is a zustand store in `src/renderer/src/canvas/store.ts`. Read `docs/PRODUCT.md` → Canvas.
-- Open PRs: #1 KAO-24, #2 KAO-26, #3 KAO-25, #5 KAO-22 (this), #6 KAO-23. KAO-28 (#4) is merged; this branch has main merged in and passes `npm run lint` and `format:check`.
+Main now has:
+- KAO-21 (scaffold)
+- KAO-28 (#4, lint and format)
+- KAO-22 (#5, canvas: pan, hybrid zoom, drag, resize, focus)
+- KAO-24 (#1, status badges)
+- KAO-25 (#3, launcher)
+
+How the merged pieces fit:
+- **Launcher:** opens with "+ New tile" or Ctrl+Shift+N and adds tiles through `canvasStore.addTile()` with `placeNewTile()`. Tiles carry `command`, `args`, `shell`, `presetId` and `cwd`.
+- **Status badges:** shown in `TileFrame`'s title bar by `TileStatus`. A badge resets to "shell" whenever the tile respawns, meaning its command, args, shell or cwd changed. Main sends `exited` when a PTY dies on its own.
+- Checked in the running app: a launched custom command runs in its folder, fires the hook and shows "working". The badge stays visible while zoomed out and turns "exited" on exit.
+
+Still in flight:
+- #6 KAO-23 (zoom spike doc), merged right after this.
+- The launcher-focus bug: a new issue, worked by a haiku agent. Its PR stays open for review.
+- #2 KAO-26 (save and restore layout), being rebased and wired up by a sonnet agent. It gets pushed to #2 and isn't merged.
 
 ## Next step
-1. Kao tries PR #5 by hand (`npm run dev` on the branch), especially trackpad pan and pinch, which I could only test with synthetic events.
-2. Merge PR #5 first, then KAO-23 (#6) (its doc is what PRODUCT.md cites), then rebase the other agent PRs onto it:
-   - **KAO-25:** drop `App.tsx` and `src/shared/placement.ts`. The launcher calls `canvasStore.getState().addTile()` with `placeNewTile()` and replaces "+ Shell". `TileFrame` passes `tile.args` through to `TerminalTile`.
-   - **KAO-26:** use the shared `Viewport` in the store, and implement its `CanvasState` with `getState()`, `setLayout()` and `subscribe()`.
-   - **KAO-24 and KAO-28:** small text conflicts in `TerminalTile.tsx` and `styles.css`.
+1. Review the launcher-focus PR and #2 (KAO-26), then merge them.
+2. Then the MVP is complete. Kao tries it by hand: trackpad pan and pinch, and restoring 4 tiles after a restart.
 
 ## Watch out for
-- Snapshots are plain text. For colours, add `@xterm/addon-serialize` and use `serializeAsHTML()` in `snapshot()` in `TerminalTile.tsx`.
-- To drive the app from a script, run `npx electron-vite dev -- --remote-debugging-port=9339` and use CDP `Input.dispatch*` events. Synthetic DOM pointer events can't take pointer capture, and rAF stalls while the window is covered.
+- KAO-26 should restore through `canvasStore.getState().setLayout()` and save from `canvasStore.subscribe()`, debounced. Tiles have to keep `command`, `args`, `shell` and `cwd`, or restored tiles come back as plain shells.
+- Snapshots are plain text. For colours, add `@xterm/addon-serialize`.
+- To drive the app from a script, run `npx electron-vite dev -- --remote-debugging-port=9339` and dispatch DOM events inside the page. CDP `Input.*` events hang while the window is covered.

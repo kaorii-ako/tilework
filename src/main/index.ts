@@ -1,9 +1,11 @@
-import { app, BrowserWindow, ipcMain } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain } from 'electron'
 import { join } from 'node:path'
 import { spawn } from 'node-pty'
 import { IPC, type InputRequest, type KillRequest, type ResizeRequest, type SpawnRequest } from '../shared/ipc'
 import { PtyManager } from './pty-manager'
 import { defaultStatusFile, watchStatusFile } from './status-watcher'
+import { badCwdMessage, buildLaunch, commandExists, isDirectory, missingCommandMessage, validateSpawn } from './launch'
+import { loadPresets } from './presets'
 
 let win: BrowserWindow | null = null
 
@@ -16,9 +18,26 @@ const ptys = new PtyManager(
 
 const isId = (v: unknown): v is string => typeof v === 'string' && v.length > 0 && v.length < 200
 
-ipcMain.handle(IPC.spawn, (_e, req: SpawnRequest) => {
+ipcMain.handle(IPC.spawn, async (_e, req: SpawnRequest) => {
   if (!isId(req?.tileId)) throw new Error('bad tileId')
-  ptys.spawn(req)
+  const bad = validateSpawn(req)
+  if (bad) throw new Error(bad)
+  const shell = process.env.SHELL || '/bin/bash'
+  // Tell the tile why nothing is running, instead of leaving a dead terminal.
+  const fail = (msg: string) => {
+    win?.webContents.send(IPC.data, { tileId: req.tileId, data: msg })
+    win?.webContents.send(IPC.exit, { tileId: req.tileId, code: 127 })
+  }
+  if (req.cwd && !isDirectory(req.cwd)) return fail(badCwdMessage(req.cwd))
+  const launch = buildLaunch(shell, req)
+  if (!launch) return ptys.spawn(req)
+  if (launch.probe && !(await commandExists(shell, launch.probe))) return fail(missingCommandMessage(launch.probe))
+  ptys.spawn({ ...req, command: launch.file, args: launch.args })
+})
+ipcMain.handle(IPC.presets, () => loadPresets())
+ipcMain.handle(IPC.pickFolder, async () => {
+  const r = win ? await dialog.showOpenDialog(win, { properties: ['openDirectory'] }) : null
+  return r && !r.canceled ? r.filePaths[0] : null
 })
 ipcMain.on(IPC.input, (_e, { tileId, data }: InputRequest) => {
   if (isId(tileId) && typeof data === 'string') ptys.input(tileId, data)

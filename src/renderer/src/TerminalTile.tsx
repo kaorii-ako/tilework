@@ -9,6 +9,7 @@ interface Props {
   /** Undefined runs the user's login shell. */
   command?: string
   args?: string[]
+  shell?: boolean
   cwd?: string
   /** False when the canvas isn't at 100%: xterm is hidden (still running) and a text snapshot shows instead. */
   live: boolean
@@ -27,7 +28,7 @@ function snapshot(term: Terminal): string {
  * xterm can't be scaled (blurry, wrong hit-testing; see docs/zoom-spike.md), so it is only
  * shown at 100% zoom.
  */
-export const TerminalTile = memo(function TerminalTile({ tileId, command, args, cwd, live }: Props) {
+export const TerminalTile = memo(function TerminalTile({ tileId, command, args, shell, cwd, live }: Props) {
   const host = useRef<HTMLDivElement>(null)
   const termRef = useRef<Terminal | null>(null)
   const [snap, setSnap] = useState<string | null>(null)
@@ -63,7 +64,7 @@ export const TerminalTile = memo(function TerminalTile({ tileId, command, args, 
     )
     const input = term.onData((data) => api.input({ tileId, data }))
     const resize = term.onResize(({ cols, rows }) => api.resize({ tileId, cols, rows }))
-    api.spawn({ tileId, command, args, cwd, cols: term.cols, rows: term.rows })
+    api.spawn({ tileId, command, args, shell, cwd, cols: term.cols, rows: term.rows })
 
     // Refit once the size settles, so a resize drag doesn't flood the PTY with SIGWINCH.
     let fitTimer: ReturnType<typeof setTimeout> | undefined
@@ -94,7 +95,7 @@ export const TerminalTile = memo(function TerminalTile({ tileId, command, args, 
       term.dispose()
     }
     // argsKey stands in for args so a new array with the same items does not respawn.
-  }, [tileId, command, argsKey, cwd])
+  }, [tileId, command, argsKey, shell, cwd])
 
   // Zoomed: hide xterm (it keeps parsing output) and refresh a text snapshot once a second.
   useEffect(() => {

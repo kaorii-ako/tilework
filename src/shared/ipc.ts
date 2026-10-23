@@ -1,6 +1,8 @@
 import type { AgentState } from './status'
 
 /** Every IPC channel and its payload, defined once. Main, preload and renderer import from here. */
+import type { Preset } from './types'
+
 export const IPC = {
   spawn: 'pty:spawn',
   input: 'pty:input',
@@ -8,7 +10,9 @@ export const IPC = {
   kill: 'pty:kill',
   data: 'pty:data',
   exit: 'pty:exit',
-  status: 'agent:status'
+  status: 'agent:status',
+  presets: 'launcher:presets',
+  pickFolder: 'launcher:pick-folder'
 } as const
 
 // renderer -> main
@@ -16,6 +20,8 @@ export interface SpawnRequest {
   tileId: string
   command?: string
   args?: string[]
+  /** Run `command` as a shell string via the login shell (quotes, pipes, aliases). */
+  shell?: boolean
   cwd?: string
   cols: number
   rows: number
@@ -55,6 +61,10 @@ export interface CanvasApi {
   kill(req: KillRequest): void
   /** Each returns an unsubscribe function. */
   onData(cb: (e: DataEvent) => void): () => void
+  /** Presets from ~/.config/agent-canvas/presets.json (created with defaults on first run). */
+  presets(): Promise<Preset[]>
+  /** Native folder picker; null if cancelled. */
+  pickFolder(): Promise<string | null>
   onExit(cb: (e: ExitEvent) => void): () => void
   onStatus(cb: (e: StatusEvent) => void): () => void
 }

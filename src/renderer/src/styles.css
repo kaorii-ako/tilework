@@ -178,3 +178,75 @@ body,
 .toolbar button:hover {
   border-color: var(--edge-focus);
 }
+
+.launcher button,
+.launcher input {
+  font:
+    13px system-ui,
+    sans-serif;
+  color: #d6dae3;
+  background: #1b1f27;
+  border: 1px solid var(--edge);
+  border-radius: 6px;
+  padding: 6px 10px;
+}
+.launcher button {
+  cursor: pointer;
+}
+.launcher button:hover {
+  border-color: var(--muted);
+}
+.launcher button.primary,
+.launcher button.on {
+  border-color: #7cc4a4;
+}
+.launcher button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  background: rgba(0, 0, 0, 0.5);
+  display: grid;
+  place-items: center;
+}
+.launcher {
+  width: min(480px, 92vw);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  background: var(--tile);
+  border: 1px solid var(--edge);
+  border-radius: 10px;
+  color: var(--muted);
+  font:
+    12px system-ui,
+    sans-serif;
+}
+.launcher h2 {
+  margin: 0;
+  font-size: 14px;
+  color: #d6dae3;
+}
+.launcher label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.launcher input {
+  flex: 1;
+  min-width: 0;
+}
+.presets,
+.recent,
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.row.end {
+  justify-content: flex-end;
+}
