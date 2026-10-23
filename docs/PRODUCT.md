@@ -17,7 +17,7 @@ Never copy another product's name, logo, icons, UI copy, layouts or screenshots.
 | Issue | What |
 | -- | -- |
 | KAO-21 | App shell with one real terminal tile (done) |
-| KAO-22 | Infinite canvas: pan, drag, resize, multi-tile focus |
+| KAO-22 | Infinite canvas: pan, zoom, drag, resize, multi-tile focus |
 | KAO-23 | Spike: zooming xterm.js without blurry text or broken mouse hit-testing |
 | KAO-24 | Live status per tile from Claude Code hooks |
 | KAO-25 | "New tile" launcher with presets (claude, codex, gemini, shell) and a working folder |
@@ -37,6 +37,8 @@ Electron + electron-vite, React, TypeScript (strict).
   - renderer → main: `pty:spawn {tileId, command?, args?, cwd?, cols, rows}` (invoke), `pty:input {tileId, data}`, `pty:resize {tileId, cols, rows}`, `pty:kill {tileId}`
   - main → renderer: `pty:data {tileId, data}`, `pty:exit {tileId, code}`
 - **Preload** (`src/preload`). Exposes `window.canvasApi` (type `CanvasApi`) via contextBridge. contextIsolation on, nodeIntegration off, sandbox on. It is built as CommonJS because sandboxed preloads must be.
-- **Renderer** (`src/renderer`). `<TerminalTile tileId command args cwd />` uses @xterm/xterm, the fit addon and the WebGL addon (falling back to the DOM renderer). A ResizeObserver refits it, and xterm's `onResize` sends the new cols and rows to the PTY.
+- **Canvas** (`src/renderer/src/canvas`). One zustand store (`store.ts`) holds `viewport {x, y, zoom}`, `tiles: Tile[]`, `order` (tile ids back to front) and `focusedTileId`. Read it in components with `useCanvas(selector)`, and outside React with `canvasStore.getState()` and `canvasStore.subscribe`. The convention is `screen = canvas * zoom + (x, y)`. Panning writes one CSS transform on `.world` straight from a store subscription, so no tile or terminal re-renders while panning. Space+drag pans from anywhere, and middle-drag and two-finger scroll pan from the background. ctrl+wheel (and trackpad pinch) zooms around the cursor between 20% and 150%, snapping to exactly 100% when it passes it. A plain space press is held back until we know whether it starts a pan (`spaceGesture.ts`). Keyboard focus follows `focusedTileId`, so only that tile's xterm holds DOM focus.
+- **Zoom is hybrid** (from the KAO-23 spike, `docs/zoom-spike.md`). Scaled xterm is blurry and its mouse hit-testing breaks, and resizing the font per zoom level resizes every PTY. So terminals are live only at exactly 100%. At any other zoom, `TerminalTile` hides xterm with `visibility: hidden` (it keeps running and keeps its size) and shows a plain-text snapshot of the visible rows, refreshed once a second. Clicking a snapshot zooms to 100% centered on that tile. You can't type into a tile while zoomed out, by design.
+- **Renderer** (`src/renderer`). `<TerminalTile tileId command args cwd />` uses @xterm/xterm, the fit addon and the WebGL addon (falling back to the DOM renderer). A ResizeObserver refits it 50 ms after the size settles, and xterm's `onResize` sends the new cols and rows to the PTY. It is memoized, so moving its frame never re-renders it.
 - **Shared types** (`src/shared/types.ts`). `Tile {id, title, command?, cwd?, x, y, w, h}` is the single shape the canvas, launcher and persistence all use. Extend it there; don't fork it.
 - node-pty is a native module, rebuilt for Electron's ABI by `electron-builder install-app-deps` in `postinstall`.

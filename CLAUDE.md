@@ -15,11 +15,13 @@ Read `docs/PRODUCT.md` first. It has the product, the branding rule and the arch
 - `src/main/`: Electron main process; `pty-manager.ts` owns all PTYs
 - `src/preload/`: exposes `window.canvasApi` (sandboxed, built as CJS)
 - `src/renderer/src/`: React UI; `TerminalTile.tsx` is one xterm.js tile
+- `src/renderer/src/canvas/`: canvas store (zustand), pan/focus handling, `TileFrame`
 - `docs/`: product brief and specs
 
 ## Conventions
 - New IPC: add the channel to `IPC` and its payload type in `src/shared/ipc.ts`, extend `CanvasApi`, then implement it in preload and main. Never use raw channel strings elsewhere.
 - Validate IPC payloads in main; the renderer is untrusted.
+- Canvas state lives only in `canvasStore`; add actions there (with tests), don't keep tile state in components.
 - Need more tile fields? Extend `Tile` in `src/shared/types.ts`; don't define a parallel type.
 - The renderer never touches Node or node-pty; everything goes through `window.canvasApi`.
 - Logic gets a vitest test next to it (`*.test.ts`).
