@@ -12,7 +12,8 @@
     "lint": "oxlint src",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "postinstall": "install-electron && electron-builder install-app-deps"
+    "postinstall": "install-electron && electron-builder install-app-deps",
+    "spike:zoom": "electron spikes/zoom/run.mjs --ozone-platform-hint=auto"
   },
   "repository": {
     "type": "git",
