@@ -99,6 +99,29 @@ body,
 .tile-close:hover {
   background: var(--edge);
 }
+.tile-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--muted);
+}
+[data-state='working'] .dot {
+  background: #7cc4a4;
+}
+[data-state='idle'] .dot {
+  background: #6a9fd8;
+}
+[data-state='needs-input'] .dot {
+  background: #e0a458;
+}
+[data-state='exited'] .dot {
+  background: #5a6272;
+}
 .tile-body {
   position: relative;
   flex: 1;

@@ -3,13 +3,15 @@ import { join } from 'node:path'
 import { spawn } from 'node-pty'
 import { IPC, type InputRequest, type KillRequest, type ResizeRequest, type SpawnRequest } from '../shared/ipc'
 import { PtyManager } from './pty-manager'
+import { defaultStatusFile, watchStatusFile } from './status-watcher'
 
 let win: BrowserWindow | null = null
 
 const ptys = new PtyManager(
   spawn,
   (e) => win?.webContents.send(IPC.data, e),
-  (e) => win?.webContents.send(IPC.exit, e)
+  (e) => win?.webContents.send(IPC.exit, e),
+  (e) => win?.webContents.send(IPC.status, e)
 )
 
 const isId = (v: unknown): v is string => typeof v === 'string' && v.length > 0 && v.length < 200
@@ -49,6 +51,13 @@ function createWindow(): void {
   else win.loadFile(join(import.meta.dirname, '../renderer/index.html'))
 }
 
-app.whenReady().then(createWindow)
+app.whenReady().then(() => {
+  // PTYs inherit this env var, so the hook writes to the file we tail.
+  process.env.AGENT_CANVAS_STATUS_FILE = defaultStatusFile()
+  watchStatusFile(process.env.AGENT_CANVAS_STATUS_FILE, (e) => {
+    if (ptys.has(e.tileId)) win?.webContents.send(IPC.status, e)
+  })
+  createWindow()
+})
 app.on('window-all-closed', () => app.quit())
 app.on('before-quit', () => ptys.killAll())

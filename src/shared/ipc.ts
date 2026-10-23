@@ -1,3 +1,5 @@
+import type { AgentState } from './status'
+
 /** Every IPC channel and its payload, defined once. Main, preload and renderer import from here. */
 export const IPC = {
   spawn: 'pty:spawn',
@@ -5,7 +7,8 @@ export const IPC = {
   resize: 'pty:resize',
   kill: 'pty:kill',
   data: 'pty:data',
-  exit: 'pty:exit'
+  exit: 'pty:exit',
+  status: 'agent:status'
 } as const
 
 // renderer -> main
@@ -39,6 +42,10 @@ export interface ExitEvent {
   tileId: string
   code: number
 }
+export interface StatusEvent {
+  tileId: string
+  state: AgentState
+}
 
 /** Shape of window.canvasApi exposed by the preload. */
 export interface CanvasApi {
@@ -49,4 +56,5 @@ export interface CanvasApi {
   /** Each returns an unsubscribe function. */
   onData(cb: (e: DataEvent) => void): () => void
   onExit(cb: (e: ExitEvent) => void): () => void
+  onStatus(cb: (e: StatusEvent) => void): () => void
 }

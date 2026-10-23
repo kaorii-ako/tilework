@@ -1,6 +1,6 @@
 import os from 'node:os'
 import type { IPty, spawn as ptySpawn } from 'node-pty'
-import type { DataEvent, ExitEvent, SpawnRequest } from '../shared/ipc'
+import type { DataEvent, ExitEvent, SpawnRequest, StatusEvent } from '../shared/ipc'
 
 type SpawnFn = typeof ptySpawn
 
@@ -11,7 +11,8 @@ export class PtyManager {
   constructor(
     private spawnFn: SpawnFn,
     private onData: (e: DataEvent) => void,
-    private onExit: (e: ExitEvent) => void
+    private onExit: (e: ExitEvent) => void,
+    private onStatus: (e: StatusEvent) => void = () => {}
   ) {}
 
   spawn({ tileId, command, args, cwd, cols, rows }: SpawnRequest): void {
@@ -28,8 +29,11 @@ export class PtyManager {
     pty.onData((data) => this.onData({ tileId, data }))
     pty.onExit(({ exitCode }) => {
       // Only forget it if it wasn't already replaced by a respawn.
-      if (this.ptys.get(tileId) === pty) this.ptys.delete(tileId)
+      const current = this.ptys.get(tileId) === pty
+      if (current) this.ptys.delete(tileId)
       this.onExit({ tileId, code: exitCode })
+      // A PTY that died on its own can't send SessionEnd; don't leave a stale status.
+      if (current) this.onStatus({ tileId, state: 'exited' })
     })
   }
 

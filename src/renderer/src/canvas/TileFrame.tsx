@@ -1,4 +1,5 @@
-import { memo, type PointerEvent as ReactPointerEvent } from 'react'
+import { memo, useEffect, useState, type PointerEvent as ReactPointerEvent } from 'react'
+import type { AgentState } from '../../../shared/status'
 import { canvasStore, dragTo, useCanvas } from './store'
 import { TerminalTile } from '../TerminalTile'
 
@@ -16,6 +17,34 @@ function track(e: ReactPointerEvent, onMove: (to: { x: number; y: number }) => v
   el.addEventListener('pointerup', up)
   el.addEventListener('pointercancel', up)
 }
+
+const LABEL: Record<AgentState, string> = {
+  working: 'working',
+  idle: 'idle',
+  'needs-input': 'needs you',
+  exited: 'exited'
+}
+
+/**
+ * Live agent state from Claude Code hooks (KAO-24). Resets to "shell" whenever the
+ * tile respawns: `spawnKey` changes exactly when TerminalTile starts a new PTY.
+ */
+const TileStatus = memo(function TileStatus({ tileId, spawnKey }: { tileId: string; spawnKey: string }) {
+  const [state, setState] = useState<AgentState>()
+  useEffect(() => {
+    const off = window.canvasApi.onStatus((e) => e.tileId === tileId && setState(e.state))
+    return () => {
+      off()
+      setState(undefined)
+    }
+  }, [tileId, spawnKey])
+  return (
+    <span className="tile-status" data-state={state ?? 'shell'}>
+      {state && <i className="dot" />}
+      {state ? LABEL[state] : 'shell'}
+    </span>
+  )
+})
 
 /** Position, size, title bar and resize handle around one terminal. */
 export const TileFrame = memo(function TileFrame({ id }: { id: string }) {
@@ -47,6 +76,7 @@ export const TileFrame = memo(function TileFrame({ id }: { id: string }) {
     >
       <header className="tile-bar" onPointerDown={startDrag('move')}>
         <span className="tile-title">{tile.title}</span>
+        <TileStatus tileId={id} spawnKey={`${tile.command ?? ''}\0${tile.cwd ?? ''}`} />
         <button
           type="button"
           className="tile-close"

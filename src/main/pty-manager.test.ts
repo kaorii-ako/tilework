@@ -58,6 +58,19 @@ describe('PtyManager', () => {
     expect(ptys[1].write).toHaveBeenCalledWith('x')
   })
 
+  it('reports exited status when a PTY dies on its own, but not when replaced or killed', () => {
+    const ptys: ReturnType<typeof fakePty>[] = []
+    const onStatus = vi.fn()
+    const mgr = new PtyManager((() => ptys[ptys.push(fakePty()) - 1]) as never, vi.fn(), vi.fn(), onStatus)
+    mgr.spawn({ tileId: 'a', ...req })
+    mgr.spawn({ tileId: 'a', ...req }) // old PTY exits, must not mark the new one
+    mgr.kill('a')
+    expect(onStatus).not.toHaveBeenCalled()
+    mgr.spawn({ tileId: 'b', ...req })
+    ;(ptys[2].onExit as ReturnType<typeof vi.fn>).mock.calls[0][0]({ exitCode: 0 })
+    expect(onStatus).toHaveBeenCalledExactlyOnceWith({ tileId: 'b', state: 'exited' })
+  })
+
   it('killAll empties the map', () => {
     const { mgr, ptys } = setup()
     mgr.spawn({ tileId: 'a', ...req })
