@@ -1,0 +1,11 @@
+package-lock.json
+HANDOFF.md
+CLAUDE.md
+README.md
+docs
+out
+dist
+release
+coverage
+node_modules
+.claude

@@ -17,13 +17,28 @@ export interface SpawnRequest {
   cols: number
   rows: number
 }
-export interface InputRequest { tileId: string; data: string }
-export interface ResizeRequest { tileId: string; cols: number; rows: number }
-export interface KillRequest { tileId: string }
+export interface InputRequest {
+  tileId: string
+  data: string
+}
+export interface ResizeRequest {
+  tileId: string
+  cols: number
+  rows: number
+}
+export interface KillRequest {
+  tileId: string
+}
 
 // main -> renderer
-export interface DataEvent { tileId: string; data: string }
-export interface ExitEvent { tileId: string; code: number }
+export interface DataEvent {
+  tileId: string
+  data: string
+}
+export interface ExitEvent {
+  tileId: string
+  code: number
+}
 
 /** Shape of window.canvasApi exposed by the preload. */
 export interface CanvasApi {

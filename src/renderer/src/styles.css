@@ -4,9 +4,21 @@
   --edge: #262b35;
   --muted: #8a93a6;
 }
-* { box-sizing: border-box; }
-html, body, #root { margin: 0; height: 100%; background: var(--bg); }
-.app { height: 100%; padding: 16px; display: flex; }
+* {
+  box-sizing: border-box;
+}
+html,
+body,
+#root {
+  margin: 0;
+  height: 100%;
+  background: var(--bg);
+}
+.app {
+  height: 100%;
+  padding: 16px;
+  display: flex;
+}
 .tile {
   flex: 1;
   display: flex;
@@ -18,9 +30,15 @@ html, body, #root { margin: 0; height: 100%; background: var(--bg); }
 }
 .tile-bar {
   padding: 6px 12px;
-  font: 12px system-ui, sans-serif;
+  font:
+    12px system-ui,
+    sans-serif;
   color: var(--muted);
   border-bottom: 1px solid var(--edge);
   user-select: none;
 }
-.tile-term { flex: 1; min-height: 0; padding: 6px 0 0 8px; }
+.tile-term {
+  flex: 1;
+  min-height: 0;
+  padding: 6px 0 0 8px;
+}

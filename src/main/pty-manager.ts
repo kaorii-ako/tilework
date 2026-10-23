@@ -49,6 +49,7 @@ export class PtyManager {
   }
 
   killAll(): void {
+    // oxlint-disable-next-line unicorn/no-useless-spread -- kill() mutates the map, so iterate a snapshot
     for (const id of [...this.ptys.keys()]) this.kill(id)
   }
 

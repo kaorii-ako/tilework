@@ -9,6 +9,9 @@
     "start": "electron-vite preview -- --ozone-platform-hint=auto",
     "test": "vitest run",
     "typecheck": "tsc --noEmit -p tsconfig.json",
+    "lint": "oxlint src",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
     "postinstall": "install-electron && electron-builder install-app-deps"
   },
   "repository": {
@@ -37,6 +40,8 @@
     "electron": "^45.0.0",
     "electron-builder": "^26.15.3",
     "electron-vite": "^6.0.0",
+    "oxlint": "^1.89.0",
+    "prettier": "^3.9.10",
     "typescript": "^7.0.2",
     "vite": "^8.3.5",
     "vitest": "^5.0.5"

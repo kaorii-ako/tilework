@@ -39,7 +39,9 @@ export function TerminalTile({ tileId, title, command, args, cwd }: Props) {
 
     fit.fit()
     const offData = api.onData((e) => e.tileId === tileId && term.write(e.data))
-    const offExit = api.onExit((e) => e.tileId === tileId && term.write(`\r\n\x1b[2m[process exited ${e.code}]\x1b[0m\r\n`))
+    const offExit = api.onExit(
+      (e) => e.tileId === tileId && term.write(`\r\n\x1b[2m[process exited ${e.code}]\x1b[0m\r\n`)
+    )
     const input = term.onData((data) => api.input({ tileId, data }))
     const resize = term.onResize(({ cols, rows }) => api.resize({ tileId, cols, rows }))
     api.spawn({ tileId, command, args, cwd, cols: term.cols, rows: term.rows })
