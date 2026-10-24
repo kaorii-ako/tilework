@@ -1,6 +1,6 @@
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
 import { dirname } from 'node:path'
-import type { Tile, Workspace } from '../shared/types'
+import type { Link, Tile, Workspace } from '../shared/types'
 
 const num = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v)
 const str = (v: unknown, max: number): v is string => typeof v === 'string' && v.length <= max
@@ -26,6 +26,27 @@ function parseTile(t: any): Tile | null {
   return tile
 }
 
+/**
+ * Keep only well-formed links between tiles that exist, without self-links or duplicate
+ * A→B pairs. A bad link is dropped, not fatal: losing a line beats losing the layout.
+ */
+export function parseLinks(raw: unknown, tiles: Tile[]): Link[] {
+  if (!Array.isArray(raw)) return []
+  const ids = new Set(tiles.map((t) => t.id))
+  const seen = new Set<string>()
+  const links: Link[] = []
+  for (const l of raw.slice(0, 2000) as any[]) {
+    if (!l || !str(l.id, 199) || !l.id || (l.mode !== 'manual' && l.mode !== 'auto')) continue
+    const { fromTileId: from, toTileId: to } = l
+    if (!ids.has(from) || !ids.has(to) || from === to) continue
+    const key = JSON.stringify([from, to])
+    if (seen.has(key)) continue
+    seen.add(key)
+    links.push({ id: l.id, fromTileId: from, toTileId: to, mode: l.mode })
+  }
+  return links
+}
+
 /** Validate untrusted data (file or renderer). Returns null if the shape is wrong. */
 export function parseWorkspace(raw: any): Workspace | null {
   const v = raw?.viewport
@@ -37,7 +58,7 @@ export function parseWorkspace(raw: any): Workspace | null {
     if (!tile) return null
     tiles.push(tile)
   }
-  return { version: 1, viewport: { x: v.x, y: v.y, zoom: v.zoom }, tiles }
+  return { version: 1, viewport: { x: v.x, y: v.y, zoom: v.zoom }, tiles, links: parseLinks(raw.links, tiles) }
 }
 
 export class WorkspaceStore {

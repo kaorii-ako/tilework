@@ -31,4 +31,28 @@ describe('startWorkspace', () => {
     vi.advanceTimersByTime(1000)
     expect(save).toHaveBeenCalledTimes(1)
   })
+
+  it('restores links, drops ones to missing tiles, and saves when links change', async () => {
+    const tile = (id: string) => ({ id, title: id, x: 0, y: 0, w: 400, h: 300 })
+    const link = (id: string, fromTileId: string, toTileId: string) => ({
+      id,
+      fromTileId,
+      toTileId,
+      mode: 'manual' as const
+    })
+    window.canvasApi.loadWorkspace = async () => ({
+      version: 1,
+      viewport: { x: 0, y: 0, zoom: 1 },
+      tiles: [tile('a'), tile('b')],
+      links: [link('ab', 'a', 'b'), link('ax', 'a', 'x')]
+    })
+    const store = createCanvasStore()
+    await startWorkspace(store)
+    expect(store.getState().links.map((l) => l.id)).toEqual(['ab'])
+    save.mockClear()
+    store.getState().removeLink('ab')
+    vi.advanceTimersByTime(1000)
+    expect(save).toHaveBeenCalledTimes(1)
+    expect(save.mock.calls[0][0].links).toEqual([])
+  })
 })

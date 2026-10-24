@@ -1,5 +1,5 @@
 import { NEW_TILE, type CanvasStore } from './canvas/store'
-import type { Tile, Viewport, Workspace } from '../../shared/types'
+import type { Link, Tile, Viewport, Workspace } from '../../shared/types'
 
 /**
  * What the canvas (KAO-22) must implement so layout can be saved and restored.
@@ -9,20 +9,27 @@ import type { Tile, Viewport, Workspace } from '../../shared/types'
 export interface CanvasState {
   getTiles(): Tile[]
   getViewport(): Viewport
-  setLayout(tiles: Tile[], viewport: Viewport): void
+  getLinks(): Link[]
+  /** Must drop links whose tiles no longer exist. */
+  setLayout(tiles: Tile[], viewport: Viewport, links: Link[]): void
 }
 
 /** Load the saved layout into the canvas. Returns false if there was nothing to restore. */
 export async function restoreWorkspace(canvas: CanvasState): Promise<boolean> {
   const ws = await window.canvasApi.loadWorkspace()
   if (!ws) return false
-  canvas.setLayout(ws.tiles, ws.viewport)
+  canvas.setLayout(ws.tiles, ws.viewport, ws.links)
   return true
 }
 
-/** Call whenever tiles or viewport change; main debounces the disk write. */
+/** Call whenever tiles, links or viewport change; main debounces the disk write. */
 export function saveWorkspace(canvas: CanvasState): void {
-  const ws: Workspace = { version: 1, viewport: canvas.getViewport(), tiles: canvas.getTiles() }
+  const ws: Workspace = {
+    version: 1,
+    viewport: canvas.getViewport(),
+    tiles: canvas.getTiles(),
+    links: canvas.getLinks()
+  }
   window.canvasApi.saveWorkspace(ws)
 }
 
@@ -36,7 +43,8 @@ export async function startWorkspace(store: CanvasStore, delayMs = 300): Promise
   const canvas: CanvasState = {
     getTiles: () => s().tiles,
     getViewport: () => s().viewport,
-    setLayout: (tiles, viewport) => s().setLayout(tiles, viewport)
+    getLinks: () => s().links,
+    setLayout: (tiles, viewport, links) => s().setLayout(tiles, viewport, links)
   }
   if (!(await restoreWorkspace(canvas))) {
     s().addTile({ id: crypto.randomUUID(), title: 'shell', x: 40, y: 40, ...NEW_TILE })
@@ -44,7 +52,7 @@ export async function startWorkspace(store: CanvasStore, delayMs = 300): Promise
   let timer: ReturnType<typeof setTimeout> | undefined
   const save = () => saveWorkspace(canvas)
   store.subscribe((next, prev) => {
-    if (next.tiles === prev.tiles && next.viewport === prev.viewport) return
+    if (next.tiles === prev.tiles && next.viewport === prev.viewport && next.links === prev.links) return
     clearTimeout(timer)
     timer = setTimeout(save, delayMs)
   })

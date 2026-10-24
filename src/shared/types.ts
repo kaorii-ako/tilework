@@ -17,6 +17,14 @@ export interface Tile {
   h: number
 }
 
+/** A line from one tile's output to another tile's input. `auto` hands off on its own (KAO-33). */
+export interface Link {
+  id: string
+  fromTileId: string
+  toTileId: string
+  mode: 'manual' | 'auto'
+}
+
 /** A launcher entry. No command means the user's login shell. Stored in ~/.config/agent-canvas/presets.json. */
 export interface Preset {
   id: string
@@ -38,4 +46,6 @@ export interface Workspace {
   version: 1
   viewport: Viewport
   tiles: Tile[]
+  /** Missing in files saved before KAO-32; loads as []. */
+  links: Link[]
 }

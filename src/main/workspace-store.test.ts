@@ -24,6 +24,10 @@ const ws: Workspace = {
       h: 300
     },
     { id: 'b', title: 'shell', x: 620, y: 10, w: 500, h: 300 }
+  ],
+  links: [
+    { id: 'l1', fromTileId: 'a', toTileId: 'b', mode: 'manual' },
+    { id: 'l2', fromTileId: 'b', toTileId: 'c', mode: 'auto' }
   ]
 }
 
@@ -86,5 +90,33 @@ describe('WorkspaceStore', () => {
   ])('rejects a tile with %s', (_n, extra) => {
     const bad = { ...ws, tiles: [{ ...ws.tiles[0], ...extra }] }
     expect(parseWorkspace(bad)).toBeNull()
+  })
+
+  it('loads a file saved before links existed as links: []', () => {
+    const { links: _, ...old } = ws
+    expect(parseWorkspace(old)).toEqual({ ...ws, links: [] })
+  })
+
+  it('drops links to missing tiles, self-links, duplicates and malformed links', () => {
+    const l = (id: string, fromTileId: string, toTileId: string, mode: unknown = 'manual') => ({
+      id,
+      fromTileId,
+      toTileId,
+      mode
+    })
+    const parsed = parseWorkspace({
+      ...ws,
+      links: [
+        l('ok', 'a', 'b'),
+        l('gone', 'a', 'zzz'),
+        l('self', 'a', 'a'),
+        l('dup', 'a', 'b'),
+        l('mode', 'b', 'a', 'sometimes'),
+        { fromTileId: 'b', toTileId: 'c', mode: 'manual' },
+        null
+      ]
+    })
+    expect(parsed?.links.map((x) => x.id)).toEqual(['ok'])
+    expect(parsed?.tiles).toEqual(ws.tiles)
   })
 })

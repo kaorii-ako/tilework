@@ -1,6 +1,17 @@
 import { describe, expect, it } from 'vitest'
 import type { Tile } from '../../../shared/types'
-import { MIN_TILE, ZOOM, createCanvasStore, dragTo, nextZoom, placeNewTile, screenToCanvas } from './store'
+import {
+  MIN_TILE,
+  ZOOM,
+  createCanvasStore,
+  dragTo,
+  inPort,
+  linkCurve,
+  nextZoom,
+  outPort,
+  placeNewTile,
+  screenToCanvas
+} from './store'
 
 const tile = (id: string, x = 0, y = 0): Tile => ({ id, title: id, x, y, w: 400, h: 300 })
 
@@ -129,5 +140,103 @@ describe('focus and z-order', () => {
     s.getState().focusTile('old')
     s.getState().setLayout([tile('a'), tile('b')], { x: 5, y: 6, zoom: 1 })
     expect(s.getState()).toMatchObject({ order: ['a', 'b'], focusedTileId: null, viewport: { x: 5, y: 6, zoom: 1 } })
+  })
+})
+
+describe('links', () => {
+  const three = () => createCanvasStore({ tiles: [tile('a'), tile('b'), tile('c')] })
+  const pairs = (s: ReturnType<typeof three>) => s.getState().links.map((l) => `${l.fromTileId}>${l.toTileId}`)
+
+  it('adds manual links, several per tile', () => {
+    const s = three()
+    s.getState().addLink('a', 'b')
+    s.getState().addLink('b', 'c')
+    s.getState().addLink('a', 'c')
+    expect(pairs(s)).toEqual(['a>b', 'b>c', 'a>c'])
+    expect(s.getState().links.every((l) => l.mode === 'manual' && l.id)).toBe(true)
+  })
+
+  it('ignores self-links, duplicates and unknown tiles, but allows the reverse direction', () => {
+    const s = three()
+    s.getState().addLink('a', 'b')
+    const before = s.getState().links
+    s.getState().addLink('a', 'b')
+    s.getState().addLink('a', 'a')
+    s.getState().addLink('a', 'nope')
+    expect(s.getState().links).toBe(before)
+    s.getState().addLink('b', 'a')
+    expect(pairs(s)).toEqual(['a>b', 'b>a'])
+  })
+
+  it('removes a link and clears its selection', () => {
+    const s = three()
+    s.getState().addLink('a', 'b')
+    s.getState().addLink('b', 'c')
+    const id = s.getState().links[0].id
+    s.getState().selectLink(id)
+    s.getState().removeLink(id)
+    expect(pairs(s)).toEqual(['b>c'])
+    expect(s.getState().selectedLinkId).toBeNull()
+  })
+
+  it('closing a tile removes every link in or out of it', () => {
+    const s = three()
+    s.getState().addLink('a', 'b')
+    s.getState().addLink('b', 'c')
+    s.getState().addLink('a', 'c')
+    s.getState().selectLink(s.getState().links[1].id)
+    s.getState().removeTile('b')
+    expect(pairs(s)).toEqual(['a>c'])
+    expect(s.getState().selectedLinkId).toBeNull()
+  })
+
+  it('focusing a tile deselects the link', () => {
+    const s = three()
+    s.getState().addLink('a', 'b')
+    s.getState().selectLink(s.getState().links[0].id)
+    s.getState().focusTile('a')
+    expect(s.getState().selectedLinkId).toBeNull()
+  })
+
+  it('setLayout drops links whose tiles are gone', () => {
+    const s = createCanvasStore()
+    const l = (id: string, fromTileId: string, toTileId: string) => ({
+      id,
+      fromTileId,
+      toTileId,
+      mode: 'manual' as const
+    })
+    s.getState().setLayout([tile('a'), tile('b')], { x: 0, y: 0, zoom: 1 }, [l('1', 'a', 'b'), l('2', 'b', 'x')])
+    expect(s.getState().links.map((x) => x.id)).toEqual(['1'])
+  })
+
+  it('linkCurve runs between the ports with horizontal tangents and a true midpoint', () => {
+    const a = outPort({ ...tile('a'), x: 0, y: 0 }) // (400, 150)
+    const b = inPort({ ...tile('b'), x: 800, y: 300 }) // (800, 450)
+    expect([a, b]).toEqual([
+      { x: 400, y: 150 },
+      { x: 800, y: 450 }
+    ])
+    const { d, mid } = linkCurve(a, b)
+    expect(d).toBe('M 400 150 C 600 150, 600 450, 800 450')
+    expect(mid).toEqual({ x: 600, y: 300 })
+  })
+
+  it('linkCurve keeps a minimum reach when the target is behind the source', () => {
+    expect(linkCurve({ x: 100, y: 0 }, { x: 100, y: 0 }).d).toBe('M 100 0 C 160 0, 40 0, 100 0')
+  })
+})
+
+describe('agent status', () => {
+  it('sets and clears per-tile status, and closing a tile drops it', () => {
+    const s = createCanvasStore({ tiles: [tile('a'), tile('b')] })
+    s.getState().setStatus('a', 'working')
+    s.getState().setStatus('b', 'idle')
+    s.getState().setStatus('a', 'needs-input')
+    s.getState().clearStatus('missing')
+    expect(s.getState().status).toEqual({ a: 'needs-input', b: 'idle' })
+    s.getState().clearStatus('a')
+    s.getState().removeTile('b')
+    expect(s.getState().status).toEqual({})
   })
 })

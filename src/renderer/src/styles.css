@@ -6,6 +6,12 @@
   --edge-focus: #4f8f75;
   --muted: #8a93a6;
   --text: #d6dae3;
+  /* Agent state colours (KAO-24), shared by the status dot and link lines. */
+  --st-shell: var(--muted);
+  --st-working: #7cc4a4;
+  --st-idle: #6a9fd8;
+  --st-needs-input: #e0a458;
+  --st-exited: #5a6272;
 }
 * {
   box-sizing: border-box;
@@ -58,7 +64,7 @@ body,
   background: var(--tile);
   border: 1px solid var(--edge);
   border-radius: 10px;
-  overflow: hidden;
+  /* Not overflow: hidden, so the link ports can sit on the edge; .tile-body clips instead. */
   box-shadow: 0 8px 24px rgb(0 0 0 / 0.35);
 }
 .tile.focused {
@@ -110,22 +116,30 @@ body,
   border-radius: 50%;
   background: var(--muted);
 }
-[data-state='working'] .dot {
-  background: #7cc4a4;
+[data-state='shell'] {
+  --st: var(--st-shell);
 }
-[data-state='idle'] .dot {
-  background: #6a9fd8;
+[data-state='working'] {
+  --st: var(--st-working);
 }
-[data-state='needs-input'] .dot {
-  background: #e0a458;
+[data-state='idle'] {
+  --st: var(--st-idle);
 }
-[data-state='exited'] .dot {
-  background: #5a6272;
+[data-state='needs-input'] {
+  --st: var(--st-needs-input);
+}
+[data-state='exited'] {
+  --st: var(--st-exited);
+}
+.tile-status .dot {
+  background: var(--st);
 }
 .tile-body {
   position: relative;
   flex: 1;
   min-height: 0;
+  overflow: hidden;
+  border-radius: 0 0 9px 9px;
 }
 .tile-term {
   position: absolute;
@@ -156,6 +170,113 @@ body,
   height: 14px;
   cursor: nwse-resize;
   background: linear-gradient(135deg, transparent 50%, var(--edge) 50%);
+  border-bottom-right-radius: 9px;
+}
+
+/* Link ports: output on the right edge, input on the left. Shown on hover, focus, or while linking. */
+.port {
+  position: absolute;
+  top: 50%;
+  width: 14px;
+  height: 14px;
+  margin-top: -7px;
+  border-radius: 50%;
+  background: var(--tile);
+  border: 2px solid var(--edge-focus);
+  opacity: 0;
+  transition: opacity 120ms;
+}
+.port-in {
+  left: -8px;
+  pointer-events: none;
+}
+.port-out {
+  right: -8px;
+  cursor: crosshair;
+}
+.tile:hover .port,
+.tile.focused .port,
+.surface.linking .port-in {
+  opacity: 1;
+}
+.surface.linking .port-out {
+  opacity: 0;
+}
+.port-out:hover {
+  background: var(--edge-focus);
+}
+
+/* Links: one SVG under the tiles. Only the wide invisible hit path takes the pointer. */
+.links {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 1px;
+  height: 1px;
+  overflow: visible;
+  pointer-events: none;
+}
+.link-line,
+.link-draft {
+  fill: none;
+  stroke: var(--st, var(--edge-focus));
+  stroke-width: 2;
+}
+.link-draft {
+  stroke-dasharray: 6 5;
+}
+.link.selected .link-line {
+  stroke-width: 4;
+  filter: drop-shadow(0 0 4px var(--st));
+}
+.link-hit {
+  fill: none;
+  stroke: transparent;
+  stroke-width: 14;
+  pointer-events: stroke;
+  cursor: pointer;
+}
+.link-arrow path {
+  fill: var(--st);
+}
+.link-chip rect {
+  fill: var(--tile);
+  stroke: var(--st);
+}
+.link.selected .link-chip rect {
+  stroke-width: 2;
+}
+.link-chip text {
+  fill: var(--muted);
+  font:
+    11px system-ui,
+    sans-serif;
+  text-anchor: middle;
+  user-select: none;
+}
+.link-menu {
+  position: fixed;
+  z-index: 20;
+  padding: 4px;
+  background: var(--tile);
+  border: 1px solid var(--edge);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.45);
+}
+.link-menu button {
+  display: block;
+  font:
+    13px system-ui,
+    sans-serif;
+  color: var(--text);
+  background: none;
+  border: 0;
+  border-radius: 5px;
+  padding: 6px 12px;
+  cursor: pointer;
+}
+.link-menu button:hover {
+  background: var(--edge);
 }
 
 .toolbar {

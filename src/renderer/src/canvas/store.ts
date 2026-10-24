@@ -1,5 +1,6 @@
 import { createStore, useStore } from 'zustand'
-import type { Tile, Viewport } from '../../../shared/types'
+import type { AgentState } from '../../../shared/status'
+import type { Link, Tile, Viewport } from '../../../shared/types'
 
 export type { Viewport }
 
@@ -14,6 +15,12 @@ export interface CanvasState {
   /** Tile ids back to front; the last one is drawn on top. */
   order: string[]
   focusedTileId: string | null
+  links: Link[]
+  selectedLinkId: string | null
+  /** A link being dragged out of `from`'s output port; `at` is the pointer in canvas px. */
+  linkDraft: { from: string; at: Point } | null
+  /** Live agent state per tile from Claude Code hooks (KAO-24). No entry means a plain shell. */
+  status: Record<string, AgentState>
 
   panBy(dx: number, dy: number): void
   /** Multiply zoom by `factor`, keeping the canvas point under `at` (screen px) still. */
@@ -28,8 +35,16 @@ export interface CanvasState {
   resizeTile(id: string, w: number, h: number): void
   /** Focus a tile and bring it to front; null clears focus. */
   focusTile(id: string | null): void
-  /** Replace everything, e.g. when restoring a saved layout (KAO-26). */
-  setLayout(tiles: Tile[], viewport: Viewport): void
+  /** Replace everything, e.g. when restoring a saved layout (KAO-26). Links to missing tiles are dropped. */
+  setLayout(tiles: Tile[], viewport: Viewport, links?: Link[]): void
+  /** Link `from`'s output to `to`'s input. Ignores self-links, duplicates and unknown tiles. */
+  addLink(from: string, to: string): void
+  removeLink(id: string): void
+  selectLink(id: string | null): void
+  setLinkDraft(draft: CanvasState['linkDraft']): void
+  setStatus(tileId: string, state: AgentState): void
+  /** Back to "shell", e.g. when the tile respawns. */
+  clearStatus(tileId: string): void
 }
 
 export const MIN_TILE = { w: 320, h: 200 }
@@ -59,6 +74,24 @@ export function dragTo(start: Point, from: Point, to: Point, zoom: number): Poin
   return { x: start.x + (to.x - from.x) / zoom, y: start.y + (to.y - from.y) / zoom }
 }
 
+/** A link leaves the middle of a tile's right edge and enters the middle of its left edge. */
+export const outPort = (t: Tile): Point => ({ x: t.x + t.w, y: t.y + t.h / 2 })
+export const inPort = (t: Tile): Point => ({ x: t.x, y: t.y + t.h / 2 })
+
+/**
+ * Horizontal-tangent cubic bézier from `a` to `b` as an SVG path, plus its midpoint (t = 0.5).
+ * Control points reach out at least 60px so a link to a tile behind its source still loops.
+ */
+export function linkCurve(a: Point, b: Point): { d: string; mid: Point } {
+  const dx = Math.max(60, Math.abs(b.x - a.x) / 2)
+  const c1 = { x: a.x + dx, y: a.y }
+  const c2 = { x: b.x - dx, y: b.y }
+  return {
+    d: `M ${a.x} ${a.y} C ${c1.x} ${c1.y}, ${c2.x} ${c2.y}, ${b.x} ${b.y}`,
+    mid: { x: (a.x + 3 * c1.x + 3 * c2.x + b.x) / 8, y: (a.y + 3 * c1.y + 3 * c2.y + b.y) / 8 }
+  }
+}
+
 export function placeNewTile(v: Viewport, surface: { w: number; h: number }, tiles: Tile[], size = NEW_TILE): Point {
   const c = screenToCanvas(v, { x: surface.w / 2, y: surface.h / 2 })
   let x = Math.round(c.x - size.w / 2)
@@ -68,6 +101,17 @@ export function placeNewTile(v: Viewport, surface: { w: number; h: number }, til
     y += 28
   }
   return { x, y }
+}
+
+/** Links whose both ends are in `tiles`. */
+const linksBetween = (links: Link[], tiles: Tile[]) => {
+  const ids = new Set(tiles.map((t) => t.id))
+  return links.filter((l) => ids.has(l.fromTileId) && ids.has(l.toTileId))
+}
+
+function withoutKey<T>(r: Record<string, T>, key: string): Record<string, T> {
+  const { [key]: _, ...rest } = r
+  return rest
 }
 
 function updateTile(tiles: Tile[], id: string, f: (t: Tile) => Tile): Tile[] {
@@ -81,6 +125,10 @@ export function createCanvasStore(initial: Partial<Pick<CanvasState, 'viewport' 
     tiles,
     order: tiles.map((t) => t.id),
     focusedTileId: null,
+    links: [],
+    selectedLinkId: null,
+    linkDraft: null,
+    status: {},
 
     panBy: (dx, dy) => set((s) => ({ viewport: { ...s.viewport, x: s.viewport.x + dx, y: s.viewport.y + dy } })),
 
@@ -113,9 +161,13 @@ export function createCanvasStore(initial: Partial<Pick<CanvasState, 'viewport' 
     removeTile: (id) =>
       set((s) => {
         const order = s.order.filter((o) => o !== id)
+        const links = s.links.filter((l) => l.fromTileId !== id && l.toTileId !== id)
         return {
           tiles: s.tiles.filter((t) => t.id !== id),
           order,
+          links,
+          status: withoutKey(s.status, id),
+          selectedLinkId: links.some((l) => l.id === s.selectedLinkId) ? s.selectedLinkId : null,
           focusedTileId: s.focusedTileId === id ? (order.at(-1) ?? null) : s.focusedTileId
         }
       }),
@@ -137,11 +189,42 @@ export function createCanvasStore(initial: Partial<Pick<CanvasState, 'viewport' 
       set((s) => {
         if (id === null) return s.focusedTileId === null ? s : { focusedTileId: null }
         if (!s.order.includes(id)) return s
-        if (s.focusedTileId === id && s.order.at(-1) === id) return s // no-op keeps subscribers quiet
-        return { focusedTileId: id, order: [...s.order.filter((o) => o !== id), id] }
+        if (s.focusedTileId === id && s.order.at(-1) === id && !s.selectedLinkId) return s // no-op keeps subscribers quiet
+        return { focusedTileId: id, order: [...s.order.filter((o) => o !== id), id], selectedLinkId: null }
       }),
 
-    setLayout: (tiles, viewport) => set({ tiles, viewport, order: tiles.map((t) => t.id), focusedTileId: null })
+    setLayout: (tiles, viewport, links = []) =>
+      set({
+        tiles,
+        viewport,
+        order: tiles.map((t) => t.id),
+        focusedTileId: null,
+        links: linksBetween(links, tiles),
+        selectedLinkId: null,
+        linkDraft: null
+      }),
+
+    addLink: (from, to) =>
+      set((s) => {
+        if (from === to || !s.tiles.some((t) => t.id === from) || !s.tiles.some((t) => t.id === to)) return s
+        if (s.links.some((l) => l.fromTileId === from && l.toTileId === to)) return s
+        return { links: [...s.links, { id: crypto.randomUUID(), fromTileId: from, toTileId: to, mode: 'manual' }] }
+      }),
+
+    removeLink: (id) =>
+      set((s) => ({
+        links: s.links.filter((l) => l.id !== id),
+        selectedLinkId: s.selectedLinkId === id ? null : s.selectedLinkId
+      })),
+
+    selectLink: (id) => set((s) => (s.selectedLinkId === id ? s : { selectedLinkId: id })),
+
+    setLinkDraft: (linkDraft) => set({ linkDraft }),
+
+    setStatus: (tileId, state) =>
+      set((s) => (s.status[tileId] === state ? s : { status: { ...s.status, [tileId]: state } })),
+
+    clearStatus: (tileId) => set((s) => (tileId in s.status ? { status: withoutKey(s.status, tileId) } : s))
   }))
 }
 

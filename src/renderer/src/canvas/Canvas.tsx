@@ -3,6 +3,7 @@ import { useShallow } from 'zustand/react/shallow'
 import { NEW_TILE, canvasStore, placeNewTile, useCanvas, type CanvasState } from './store'
 import { createSpaceGesture } from './spaceGesture'
 import { TileFrame } from './TileFrame'
+import { LinkLayer } from './LinkLayer'
 import { Launcher, type LaunchChoice } from '../Launcher'
 
 const isTerminal = (t: EventTarget | null) => t instanceof HTMLElement && t.classList.contains('xterm-helper-textarea')
@@ -63,6 +64,13 @@ export function Canvas() {
         return
       }
       if (e.isComposing || isFormField(e.target)) return
+      const linkId = canvasStore.getState().selectedLinkId
+      if (linkId && (e.key === 'Delete' || e.key === 'Backspace') && !isTerminal(e.target)) {
+        e.preventDefault()
+        e.stopPropagation()
+        canvasStore.getState().removeLink(linkId)
+        return
+      }
       if (gesture.keyDown(plainSpace(e))) {
         e.preventDefault()
         e.stopPropagation()
@@ -96,6 +104,7 @@ export function Canvas() {
       if (e.button === 1) startPan(e)
       else if (e.button === 0) {
         canvasStore.getState().focusTile(null)
+        canvasStore.getState().selectLink(null) // a click on a line re-selects it right after (React runs later)
         ;(document.activeElement as HTMLElement | null)?.blur()
       }
     }
@@ -169,6 +178,7 @@ export function Canvas() {
     <div className="app">
       <div className="surface" ref={surface}>
         <div className="world" ref={world}>
+          <LinkLayer />
           {tileIds.map((id) => (
             <TileFrame key={id} id={id} />
           ))}
