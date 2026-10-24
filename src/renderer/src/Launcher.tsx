@@ -77,6 +77,8 @@ export function Launcher({ onLaunch, onClose }: { onLaunch: (c: LaunchChoice) =>
               role="radio"
               aria-checked={p.id === presetId}
               className={p.id === presetId ? 'on' : ''}
+              // Presets load async, so the selected button mounts with the list and takes focus then.
+              autoFocus={p.id === presetId}
               onClick={() => setPresetId(p.id)}
             >
               {p.name}

@@ -23,6 +23,17 @@ export function Canvas() {
   const pan = useRef<{ x: number; y: number } | null>(null)
   const tileIds = useCanvas(useShallow((s) => s.tiles.map((t) => t.id)))
   const [launcherOpen, setLauncherOpen] = useState(false)
+  const launcherWasOpen = useRef(false)
+
+  // Closing the launcher hands keyboard focus back to the focused tile's terminal.
+  useEffect(() => {
+    if (launcherOpen) launcherWasOpen.current = true
+    else if (launcherWasOpen.current) {
+      launcherWasOpen.current = false
+      const id = canvasStore.getState().focusedTileId
+      document.querySelector<HTMLElement>(`.tile[data-tile-id="${id}"] .xterm-helper-textarea`)?.focus()
+    }
+  }, [launcherOpen])
 
   useEffect(() => {
     const el = surface.current!
