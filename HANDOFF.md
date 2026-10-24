@@ -1,26 +1,29 @@
 # Handoff
 
-Updated 2026-10-24, after the KAO-26, 31, 32 and 33 chain. All PRs are merged; there are no open PRs.
+Updated 2026-10-24, after KAO-34 (UX pass, PR #11) was merged. There are no open PRs.
 
 ## Where things stand
-Main has the whole MVP plus links and handoffs:
-- KAO-21 scaffold, KAO-28 lint/format, KAO-22 canvas, KAO-23 zoom spike, KAO-24 status badges, KAO-25 launcher.
-- KAO-26 (#2): save/restore of `~/.config/agent-canvas/workspace.json` (tiles, viewport, links). `startWorkspace()` restores on mount, saves debounced on every change, and flushes on `beforeunload`.
-- KAO-31 (#7): the launcher takes keyboard focus on open and gives it back to a terminal on close.
-- KAO-32 (#8): links between tiles. `Link {id, fromTileId, toTileId, mode}`, `links` in `canvasStore`, SVG layer under the tiles, ports on tile edges, status colour on lines. Agent status now lives in `canvasStore` too.
-- KAO-33 (#9): handoffs. The Stop hook forwards `transcript_path`; main reads the last assistant message (only `.jsonl` under `~/.claude/`, capped at 4,000 chars) and sends it over `agent:result`. Manual "Send →" chip, auto mode (queues while the target is busy), loop guard (5 handoffs / 10 min without a keystroke, then back to manual with "loop paused"). `src/renderer/src/canvas/handoff.ts` holds the logic.
+Main has the MVP plus links (KAO-32), handoffs (KAO-33) and the UX pass (KAO-34):
+- **Main flow:** the empty canvas shows "Start an agent" (Claude Code / Shell, "in <folder> · change"). The bottom toolbar has + New tile, Zoom to fit and ?. Tiles show a status dot and a name. Drag from a tile's right edge onto another tile to link them. "Send →" appears on the line when the source finishes. Auto-send is in the line's right-click menu.
+- **Claude Code hook:** if `~/.claude/settings.json` lacks it, a banner offers Install. Install copies the script to `~/.config/agent-canvas/hooks/` (refreshed each launch), writes `settings.json.bak` and appends one entry per event (`src/main/hook-install.ts`). It is installed on Kao's machine. The backup sits next to `settings.json`.
+- **Spawn env:** tiles drop inherited `CLAUDECODE` / `CLAUDE_CODE_*` (`tileEnv` in `pty-manager.ts`).
+- **New tile placement:** new tiles never overlap; they go right of the focused tile. Pointer and wheel updates are coalesced per frame (`canvas/perFrame.ts`).
+- **Findings and screenshots:** `docs/ux-pass.md`.
+
+## Tests
+- `npm test`: 108 unit tests.
+- `npm run e2e`: 7 Playwright tests against the built app in a temporary home. Windows open hidden, then on workspace 2 (`E2E_WORKSPACE`, 0-based). Needs a desktop session (X11/XWayland) plus `xdotool` and `xprop`.
+- `REAL_CLAUDE=1 npm run e2e -- real-claude`: opt-in run with two real Claude Code tiles (haiku). Needs claude logged in and the hook installed. It passed on 2026-10-24.
 
 ## Next step
-Kao tries it by hand (checklist in the PR table of the last chat), then decides the open questions below. KAO-27, KAO-29 and KAO-30 were not run (KAO-29: typescript-eslint once it supports TypeScript 7; KAO-30: coloured zoom snapshots).
+Use it for real work and note what gets in the way. Not run yet: KAO-27, KAO-29 (typescript-eslint once it supports TS 7) and KAO-30 (coloured zoom snapshots).
 
 ## Open decisions
-- Strip `CLAUDE_CODE_*` env vars from tile PTYs? If the app is launched from inside a Claude Code session, tiles inherit a variable that disables transcripts, so handoffs never get a result.
-- Loop guard is global (any keystroke resets it, parallel auto chains share the limit). Make it per chain?
-- A link can be dropped anywhere on the target tile, not only on the input port.
-- `docs/PRODUCT.md` does not list the `agent:result` channel or the links and handoff model yet.
+- The loop guard is global (any keystroke resets it, and parallel auto chains share the limit). Make it per chain?
+- A link can be dropped anywhere on the target tile, not only on the input dot.
 
 ## Watch out for
-- The hook must be in `~/.claude/settings.json` by hand (`docs/STATUS-HOOKS.md`). Claude Code writes the transcript slightly after Stop fires, so main waits 1 s before reading it.
-- To drive the app from a script: `node_modules/.bin/electron . --ozone-platform=x11 --remote-debugging-port=<port>`. On the default Wayland backend CDP input stalls. Unset `CLAUDE_CODE_*` first if the tiles run claude.
-- Snapshots are plain text. For colours, add `@xterm/addon-serialize`.
-- A stale stash ("stale local HANDOFF draft") sits in the main checkout; it is an old draft, safe to drop.
+- Claude Code sessions started before the hook was installed need a restart to report status.
+- Claude's idle reminder fires `Notification`, so an idle tile turns amber ("Needs you") after about a minute.
+- Auto-send pastes "Continue from this." and presses Enter, so the target agent may start real work in its folder.
+- Scripting the app: use `--ozone-platform=x11`; on Wayland, synthetic input stalls when the window isn't visible.
