@@ -1,6 +1,6 @@
 # Live agent status (Claude Code hooks)
 
-Each tile's title bar shows a dot and a label: `working`, `idle`, `needs you`, `exited`. Tiles that never report (shell, codex, gemini) show `shell` and no dot.
+Each tile's title bar shows one status dot (hover it for the name): blue for Working, green for Ready (`idle`), amber for Needs you, dim for Exited. Tiles that never report (shell, codex, gemini) keep a grey Shell dot.
 
 ## How it works
 
@@ -18,7 +18,9 @@ Each tile's title bar shows a dot and a label: `working`, `idle`, `needs you`, `
 
 ## Install
 
-The app never touches your settings. Merge this into `~/.claude/settings.json` by hand. Each event holds an array, so append this entry next to your existing hooks (Coucou, herdr, ...); do not replace the array. Use the absolute path to your checkout.
+Easiest: click **Install** in the banner the app shows on launch when the hook is missing. It copies the script to `~/.config/agent-canvas/hooks/agent-canvas-hook.sh` (refreshed on every launch, so it follows app updates and survives moving the app), writes `~/.claude/settings.json.bak`, then appends one entry per event below and changes nothing else. Claude Code sessions that were already running pick it up after a restart.
+
+By hand: merge this into `~/.claude/settings.json`. Each event holds an array, so append this entry next to your existing hooks; do not replace the array. Use an absolute path to the script.
 
 ```json
 {
@@ -41,7 +43,7 @@ If you installed the hook before KAO-33, nothing changes in `settings.json`: the
 
 ## Handoffs (KAO-33)
 
-When a linked tile's Claude Code stops with a new result, the link's chip turns into **Send →**. Clicking it pastes `Handoff from <title>:` + the result + `Continue from this.` into the target as one bracketed paste, without Enter. Right-click a link (or its chip) for **Send handoff** and **Auto handoff**. Auto pastes and presses Enter on its own when the target is idle or a plain shell, and otherwise queues (chip shows `queued`) until it goes idle. An auto chain that sends more than 5 handoffs in 10 minutes without a keystroke is switched back to manual and marked `loop paused`. Nothing is ever pasted into a tile that has exited. Tiles without the hook (plain shells, codex, gemini) have no result, so Send is disabled with a tooltip.
+When a linked tile's Claude Code stops with a new result, a **Send →** button appears on the line (manual links show nothing until then). Clicking it pastes `Handoff from <title>:` + the result + `Continue from this.` into the target as one bracketed paste, without Enter. Right-click a link (or its chip) for **Send handoff** and **Auto-send**. Auto pastes and presses Enter on its own when the target is idle or a plain shell, and otherwise queues (the line's `Auto-send` chip shows `queued`) until it goes idle. An auto chain that sends more than 5 handoffs in 10 minutes without a keystroke is switched back to manual and marked `loop paused`. Nothing is ever pasted into a tile that has exited. Tiles without the hook (plain shells, codex, gemini) have no result, so Send is disabled with a tooltip.
 
 ## Known limits
 

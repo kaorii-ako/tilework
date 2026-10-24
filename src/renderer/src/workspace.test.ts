@@ -20,6 +20,14 @@ describe('startWorkspace', () => {
     vi.unstubAllGlobals()
   })
 
+  it('starts empty when nothing is saved, without writing over the file', async () => {
+    const store = createCanvasStore()
+    await startWorkspace(store)
+    expect(store.getState().tiles).toEqual([])
+    vi.advanceTimersByTime(1000)
+    expect(save).not.toHaveBeenCalled()
+  })
+
   it('flushes a pending debounced save on unload', async () => {
     const store = createCanvasStore()
     await startWorkspace(store)

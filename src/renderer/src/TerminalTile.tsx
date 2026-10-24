@@ -1,4 +1,4 @@
-import { memo, useEffect, useRef, useState } from 'react'
+import { memo, useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import { WebglAddon } from '@xterm/addon-webgl'
@@ -13,6 +13,40 @@ interface Props {
   cwd?: string
   /** False when the canvas isn't at 100%: xterm is hidden (still running) and a text snapshot shows instead. */
   live: boolean
+}
+
+/** Terminal colours, matched to the app's palette in styles.css (--tile, --text, --accent). */
+const THEME = {
+  background: '#15181e',
+  foreground: '#d5d9e0',
+  cursor: '#7aa2f7',
+  cursorAccent: '#15181e',
+  selectionBackground: '#7aa2f74d',
+  scrollbarSliderBackground: '#ffffff14',
+  scrollbarSliderHoverBackground: '#ffffff26',
+  scrollbarSliderActiveBackground: '#ffffff33',
+  black: '#1f232b',
+  red: '#e27d7d',
+  green: '#93c79b',
+  yellow: '#dfb771',
+  blue: '#7aa2f7',
+  magenta: '#b99bdc',
+  cyan: '#7cc6c9',
+  white: '#c3c8d2',
+  brightBlack: '#5c6370',
+  brightRed: '#ef9a9a',
+  brightGreen: '#aed8b4',
+  brightYellow: '#ecca8d',
+  brightBlue: '#9bbaf9',
+  brightMagenta: '#ccb3e8',
+  brightCyan: '#9ad8da',
+  brightWhite: '#eceff4'
+}
+/** Shared with .tile-snapshot, so switching between live and snapshot doesn't shift the text. */
+const FONT = {
+  fontFamily: '"JetBrains Mono", "Cascadia Code", "DejaVu Sans Mono", monospace',
+  fontSize: 13,
+  lineHeight: 1.2
 }
 
 /** The visible rows as plain text. */
@@ -31,22 +65,18 @@ function snapshot(term: Terminal): string {
 export const TerminalTile = memo(function TerminalTile({ tileId, command, args, shell, cwd, live }: Props) {
   const host = useRef<HTMLDivElement>(null)
   const termRef = useRef<Terminal | null>(null)
+  const fitRef = useRef<() => void>(() => {})
   const [snap, setSnap] = useState<string | null>(null)
   const argsKey = args?.join('\0')
 
   useEffect(() => {
     const api = window.canvasApi
-    const term = new Terminal({
-      fontFamily: '"JetBrains Mono", "Cascadia Code", "DejaVu Sans Mono", monospace',
-      fontSize: 13,
-      cursorBlink: true,
-      allowProposedApi: true,
-      theme: { background: '#14171d', foreground: '#d6dae3', cursor: '#7cc4a4', selectionBackground: '#2e3a4a' }
-    })
+    const term = new Terminal({ ...FONT, cursorBlink: true, allowProposedApi: true, theme: THEME })
     const fit = new FitAddon()
     term.loadAddon(fit)
     term.open(host.current!)
     termRef.current = term
+    fitRef.current = () => fit.fit()
 
     // WebGL is crisper and faster; fall back to the DOM renderer if the GPU says no.
     try {
@@ -68,11 +98,12 @@ export const TerminalTile = memo(function TerminalTile({ tileId, command, args, 
     const resize = term.onResize(({ cols, rows }) => api.resize({ tileId, cols, rows }))
     api.spawn({ tileId, command, args, shell, cwd, cols: term.cols, rows: term.rows })
 
-    // Refit once the size settles, so a resize drag doesn't flood the PTY with SIGWINCH.
+    // Refit once the size settles (no resize for 120 ms), so a resize drag doesn't reflow the
+    // terminal or flood the PTY with SIGWINCH on every frame.
     let fitTimer: ReturnType<typeof setTimeout> | undefined
     const ro = new ResizeObserver(() => {
       clearTimeout(fitTimer)
-      fitTimer = setTimeout(() => fit.fit(), 50)
+      fitTimer = setTimeout(() => fit.fit(), 120)
     })
     ro.observe(host.current!)
 
@@ -95,17 +126,21 @@ export const TerminalTile = memo(function TerminalTile({ tileId, command, args, 
       offExit()
       api.kill({ tileId })
       termRef.current = null
+      fitRef.current = () => {}
       term.dispose()
     }
     // argsKey stands in for args so a new array with the same items does not respawn.
   }, [tileId, command, argsKey, shell, cwd])
 
   // Zoomed: hide xterm (it keeps parsing output) and refresh a text snapshot once a second.
-  useEffect(() => {
+  // A layout effect, so the first snapshot is in place before the browser paints: otherwise
+  // the tile flashes empty for a frame every time the zoom leaves 100%.
+  useLayoutEffect(() => {
     const term = termRef.current
     if (!term) return
     if (live) {
       setSnap(null)
+      fitRef.current() // the tile may have been resized while zoomed out
       if (canvasStore.getState().focusedTileId === tileId) term.focus()
       return
     }

@@ -23,8 +23,12 @@ function LinkLine({
   paused,
   blocked,
   twoWay,
+  zoom,
+  layer,
   onMenu
 }: {
+  /** Lines are drawn under the tiles, chips over them, so a tile never hides "Send →". */
+  layer: 'line' | 'chip'
   link: Link
   from: Tile
   to: Tile
@@ -37,17 +41,21 @@ function LinkLine({
   blocked: string | null
   /** A link in the opposite direction exists. */
   twoWay: boolean
+  /** Chips are drawn at screen size, so "Send →" stays readable when zoomed out. */
+  zoom: number
   onMenu(x: number, y: number): void
 }) {
   const { d, mid } = linkCurve(outPort(from), inPort(to))
   const canSend = pending && link.mode === 'manual' && !blocked
   const queued = pending && link.mode === 'auto'
-  const label = canSend ? 'Send →' : link.mode
-  const w = Math.round(label.length * 6.5 + 20)
+  // Quiet by default: a manual link has no chip until there is something to send.
+  const label = canSend ? 'Send →' : link.mode === 'auto' ? 'Auto-send' : paused ? 'paused' : null
+  const w = label ? Math.round(label.length * 7 + (canSend ? 28 : 18)) : 0
+  const h = canSend ? 26 : 18
   // A→B and B→A share a midpoint when the tiles line up; stack their chips instead of overlapping.
-  const chipShift = twoWay ? (from.x <= to.x ? -12 : 12) : 0
+  const chipShift = twoWay ? ((from.x <= to.x ? -1 : 1) * (h / 2 + 3)) / zoom : 0
   // "queued" / "loop paused" sit on the side away from the other chip, where tiles don't cover them.
-  const noteY = chipShift < 0 ? -18 : 20
+  const noteY = chipShift < 0 ? -h / 2 - 9 : h / 2 + 10
   // The line and its chip both select the link and open its menu; the chip is the sure target when lines overlap.
   const pick = {
     onPointerDown: (e: ReactPointerEvent) => e.button === 0 && canvasStore.getState().selectLink(link.id),
@@ -57,38 +65,48 @@ function LinkLine({
       onMenu(e.clientX, e.clientY)
     }
   }
-  return (
-    <g className={selected ? 'link selected' : 'link'} data-state={state} data-link-id={link.id}>
-      <path className="link-line" d={d} markerEnd={`url(#link-arrow-${state})`} />
-      <path className="link-hit" d={d} {...pick} />
-      <g
-        className={canSend ? 'link-chip send' : 'link-chip'}
-        transform={`translate(${mid.x} ${mid.y + chipShift})`}
-        {...pick}
-        {...(canSend && {
-          role: 'button',
-          tabIndex: 0,
-          'aria-label': 'Send handoff',
-          onClick: () => manualSend(link.id),
-          onKeyDown: (e: ReactKeyboardEvent) => (e.key === 'Enter' || e.key === ' ') && manualSend(link.id)
-        })}
-      >
-        <title>{canSend ? 'Paste the latest result into the next tile (no Enter)' : `${link.mode} handoff`}</title>
-        <rect x={-w / 2} y={-9} width={w} height={18} rx={9} />
-        <text className="link-label" dy="0.35em">
-          {label}
-        </text>
-        {queued && (
-          <text className="link-badge" y={noteY} dy="0.35em">
-            queued
-          </text>
-        )}
-        {paused && (
-          <text className="link-note" y={noteY} dy="0.35em">
-            loop paused
-          </text>
-        )}
+  if (layer === 'line')
+    return (
+      <g className={selected ? 'link selected' : 'link'} data-state={state} data-link-id={link.id}>
+        <path className="link-line" d={d} markerEnd={`url(#link-arrow-${state})`} />
+        <path className="link-hit" d={d} {...pick} />
       </g>
+    )
+  if (!label) return null
+  return (
+    <g
+      data-state={state}
+      data-link-id={link.id}
+      className={canSend ? 'link-chip send' : 'link-chip'}
+      transform={`translate(${mid.x} ${mid.y + chipShift}) scale(${1 / zoom})`}
+      {...pick}
+      {...(canSend && {
+        role: 'button',
+        tabIndex: 0,
+        'aria-label': 'Send handoff',
+        onClick: () => manualSend(link.id),
+        onKeyDown: (e: ReactKeyboardEvent) => (e.key === 'Enter' || e.key === ' ') && manualSend(link.id)
+      })}
+    >
+      <title>
+        {canSend
+          ? 'Paste the latest result into the next tile (no Enter)'
+          : 'Auto-send: sends by itself when the source finishes. Right-click to change.'}
+      </title>
+      <rect x={-w / 2} y={-h / 2} width={w} height={h} rx={h / 2} />
+      <text className="link-label" dy="0.35em">
+        {label}
+      </text>
+      {queued && (
+        <text className="link-badge" y={noteY} dy="0.35em">
+          queued
+        </text>
+      )}
+      {paused && (
+        <text className="link-note" y={noteY} dy="0.35em">
+          loop paused
+        </text>
+      )}
     </g>
   )
 }
@@ -123,7 +141,7 @@ function LinkMenuItems({ linkId, close }: { linkId: string; close(): void }) {
           close()
         }}
       >
-        {mode === 'auto' ? '✓ ' : ''}Auto handoff
+        {mode === 'auto' ? '✓ ' : ''}Auto-send
       </button>
     </>
   )
@@ -150,6 +168,7 @@ export function LinkLayer() {
   const status = useCanvas((s) => s.status)
   const pending = useCanvas((s) => s.handoffPending)
   const paused = useCanvas((s) => s.loopPaused)
+  const zoom = useCanvas((s) => s.viewport.zoom)
   useCanvas((s) => s.lastResult) // re-render when results change; handoffBlocker reads them
   const [menu, setMenu] = useState<{ id: string; x: number; y: number } | null>(null)
 
@@ -201,6 +220,7 @@ export function LinkLayer() {
           if (!from || !to) return null
           return (
             <LinkLine
+              layer="line"
               key={l.id}
               link={l}
               from={from}
@@ -211,11 +231,36 @@ export function LinkLayer() {
               paused={!!paused[l.id]}
               blocked={handoffBlocker(canvasStore.getState(), l.id)}
               twoWay={links.some((r) => r.fromTileId === l.toTileId && r.toTileId === l.fromTileId)}
+              zoom={zoom}
               onMenu={(x, y) => setMenu({ id: l.id, x, y })}
             />
           )
         })}
         {draftFrom && <path className="link-draft" d={linkCurve(outPort(draftFrom), draft.at).d} />}
+      </svg>
+      <svg className="links chips">
+        {links.map((l) => {
+          const from = byId.get(l.fromTileId)
+          const to = byId.get(l.toTileId)
+          if (!from || !to) return null
+          return (
+            <LinkLine
+              layer="chip"
+              key={l.id}
+              link={l}
+              from={from}
+              to={to}
+              state={status[l.fromTileId] ?? 'shell'}
+              selected={selected === l.id}
+              pending={!!pending[l.id]}
+              paused={!!paused[l.id]}
+              blocked={handoffBlocker(canvasStore.getState(), l.id)}
+              twoWay={links.some((r) => r.fromTileId === l.toTileId && r.toTileId === l.fromTileId)}
+              zoom={zoom}
+              onMenu={(x, y) => setMenu({ id: l.id, x, y })}
+            />
+          )
+        })}
       </svg>
       {menu &&
         createPortal(

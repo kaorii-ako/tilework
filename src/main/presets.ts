@@ -10,8 +10,11 @@ export const DEFAULT_PRESETS: Preset[] = [
   { id: 'shell', name: 'Shell' }
 ]
 
-export const presetsPath = () =>
-  join(process.env.XDG_CONFIG_HOME || join(os.homedir(), '.config'), 'agent-canvas', 'presets.json')
+/** A file in the app's config folder, $XDG_CONFIG_HOME/agent-canvas (default ~/.config). */
+export const configPath = (name: string) =>
+  join(process.env.XDG_CONFIG_HOME || join(os.homedir(), '.config'), 'agent-canvas', name)
+
+export const presetsPath = () => configPath('presets.json')
 
 /** Keep valid entries, drop the rest. Returns null if the file isn't an array at all. */
 export function parsePresets(raw: unknown): Preset[] | null {

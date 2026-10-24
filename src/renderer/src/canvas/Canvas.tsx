@@ -1,10 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
 import { useShallow } from 'zustand/react/shallow'
-import { NEW_TILE, canvasStore, placeNewTile, useCanvas, type CanvasState } from './store'
+import { NEW_TILE, canvasStore, placeNewTile, uniqueTitle, useCanvas, type CanvasState } from './store'
 import { createSpaceGesture } from './spaceGesture'
+import { perFrame } from './perFrame'
 import { TileFrame } from './TileFrame'
 import { LinkLayer } from './LinkLayer'
-import { Launcher, type LaunchChoice } from '../Launcher'
+import { Toolbar } from './Toolbar'
+import { HookBanner } from './HookBanner'
+import { EmptyState, Launcher, type LaunchChoice } from '../Launcher'
 
 const isTerminal = (t: EventTarget | null) => t instanceof HTMLElement && t.classList.contains('xterm-helper-textarea')
 /** Form controls keep their own space key (typing, pressing a button). */
@@ -21,7 +24,6 @@ const isBackground = (t: EventTarget | null) => t instanceof Element && !t.close
 export function Canvas() {
   const surface = useRef<HTMLDivElement>(null)
   const world = useRef<HTMLDivElement>(null)
-  const pan = useRef<{ x: number; y: number } | null>(null)
   const tileIds = useCanvas(useShallow((s) => s.tiles.map((t) => t.id)))
   const [launcherOpen, setLauncherOpen] = useState(false)
   const launcherWasOpen = useRef(false)
@@ -86,12 +88,30 @@ export function Canvas() {
       grab()
     }
 
+    // Pointer moves and wheel ticks are applied at most once per frame, as one store update.
+    let pan: { x: number; y: number } | null = null // pointer position already applied
+    const panTo = perFrame((p: { x: number; y: number }) => {
+      if (!pan) return
+      canvasStore.getState().panBy(p.x - pan.x, p.y - pan.y)
+      pan = p
+    })
+    let wheel = { dx: 0, dy: 0 }
+    const wheelPan = perFrame(() => {
+      canvasStore.getState().panBy(wheel.dx, wheel.dy)
+      wheel = { dx: 0, dy: 0 }
+    })
+    let zoom = { factor: 1, at: { x: 0, y: 0 } }
+    const wheelZoom = perFrame(() => {
+      canvasStore.getState().zoomAt(zoom.factor, zoom.at)
+      zoom = { factor: 1, at: zoom.at }
+    })
+
     const startPan = (e: PointerEvent) => {
       e.preventDefault()
       e.stopPropagation()
       el.setPointerCapture(e.pointerId)
       el.classList.add('panning')
-      pan.current = { x: e.clientX, y: e.clientY }
+      pan = { x: e.clientX, y: e.clientY }
     }
     // Space+drag pans from anywhere, even over a tile. Window capture runs before
     // React's own capture handlers on #root, so the tile under the cursor isn't focused.
@@ -108,29 +128,30 @@ export function Canvas() {
         ;(document.activeElement as HTMLElement | null)?.blur()
       }
     }
-    const onPointerMove = (e: PointerEvent) => {
-      if (!pan.current) return
-      canvasStore.getState().panBy(e.clientX - pan.current.x, e.clientY - pan.current.y)
-      pan.current = { x: e.clientX, y: e.clientY }
-    }
+    const onPointerMove = (e: PointerEvent) => pan && panTo({ x: e.clientX, y: e.clientY })
     const endPan = () => {
-      pan.current = null
+      panTo.flush()
+      pan = null
       el.classList.remove('panning')
     }
     // ctrl+wheel (and trackpad pinch, which arrives as ctrl+wheel) zooms around the cursor.
     // Plain scroll pans, except over a live terminal, where it scrolls the terminal.
     const onWheel = (e: WheelEvent) => {
       const k = e.deltaMode === 1 ? 16 : 1
-      const s = canvasStore.getState()
       if (e.ctrlKey) {
         e.preventDefault()
         const r = el.getBoundingClientRect()
-        s.zoomAt(Math.exp(-e.deltaY * k * 0.002), { x: e.clientX - r.left, y: e.clientY - r.top })
+        zoom = {
+          factor: zoom.factor * Math.exp(-e.deltaY * k * 0.002),
+          at: { x: e.clientX - r.left, y: e.clientY - r.top }
+        }
+        wheelZoom(undefined)
         return
       }
-      if (!isBackground(e.target) && s.viewport.zoom === 1) return
+      if (!isBackground(e.target) && canvasStore.getState().viewport.zoom === 1) return
       e.preventDefault()
-      s.panBy(-e.deltaX * k, -e.deltaY * k)
+      wheel = { dx: wheel.dx - e.deltaX * k, dy: wheel.dy - e.deltaY * k }
+      wheelPan(undefined)
     }
 
     window.addEventListener('keydown', onKeyDown, true)
@@ -143,6 +164,9 @@ export function Canvas() {
     el.addEventListener('pointercancel', endPan)
     el.addEventListener('wheel', onWheel, { passive: false })
     return () => {
+      panTo.cancel()
+      wheelPan.cancel()
+      wheelZoom.cancel()
       unsub()
       window.removeEventListener('keydown', onKeyDown, true)
       window.removeEventListener('keyup', onKeyUp, true)
@@ -156,14 +180,21 @@ export function Canvas() {
     }
   }, [])
 
+  const surfaceSize = () => {
+    const r = surface.current!.getBoundingClientRect()
+    return { w: r.width, h: r.height }
+  }
+
   const launch = ({ preset, cwd, title }: LaunchChoice) => {
     setLauncherOpen(false)
     const s = canvasStore.getState()
-    const r = surface.current!.getBoundingClientRect()
-    const pos = placeNewTile(s.viewport, { w: r.width, h: r.height }, s.tiles)
+    const size = surfaceSize()
+    const pos = placeNewTile(s.viewport, size, s.tiles, s.focusedTileId)
+    const id = crypto.randomUUID()
+    const folder = cwd?.split('/').filter(Boolean).pop()
     s.addTile({
-      id: crypto.randomUUID(),
-      title: title ?? preset.name,
+      id,
+      title: uniqueTitle(title ?? (folder ? `${preset.name} · ${folder}` : preset.name), s.tiles),
       command: preset.command,
       args: preset.args,
       shell: preset.shell,
@@ -172,6 +203,7 @@ export function Canvas() {
       ...pos,
       ...NEW_TILE
     })
+    s.revealTile(id, size)
   }
 
   return (
@@ -183,12 +215,15 @@ export function Canvas() {
             <TileFrame key={id} id={id} />
           ))}
         </div>
+        {tileIds.length === 0 && !launcherOpen && <EmptyState onLaunch={launch} />}
       </div>
-      <div className="toolbar">
-        <button type="button" onClick={() => setLauncherOpen(true)} title="New tile (Ctrl+Shift+N)">
-          + New tile
-        </button>
-      </div>
+      {tileIds.length > 0 && (
+        <Toolbar
+          onNewTile={() => setLauncherOpen(true)}
+          onFit={() => canvasStore.getState().zoomToFit(surfaceSize())}
+        />
+      )}
+      <HookBanner />
       {launcherOpen && <Launcher onLaunch={launch} onClose={() => setLauncherOpen(false)} />}
     </div>
   )

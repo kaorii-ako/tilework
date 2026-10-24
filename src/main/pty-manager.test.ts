@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { IPty } from 'node-pty'
-import { PtyManager } from './pty-manager'
+import { PtyManager, tileEnv } from './pty-manager'
 
 function fakePty() {
   let exit: (e: { exitCode: number }) => void = () => {}
@@ -78,5 +78,18 @@ describe('PtyManager', () => {
     mgr.killAll()
     expect(mgr.size).toBe(0)
     expect(ptys.every((p) => p.kill.mock.calls.length === 1)).toBe(true)
+  })
+})
+
+describe('tileEnv', () => {
+  it("drops Claude Code's session variables and tags the tile", () => {
+    const env = tileEnv({ PATH: '/bin', CLAUDECODE: '1', CLAUDE_CODE_ENTRYPOINT: 'cli', CLAUDE_CONFIG_DIR: '/c' }, 't1')
+    expect(env).toEqual({
+      PATH: '/bin',
+      CLAUDE_CONFIG_DIR: '/c', // user config, not session state: kept
+      TERM: 'xterm-256color',
+      COLORTERM: 'truecolor',
+      AGENT_CANVAS_TILE_ID: 't1'
+    })
   })
 })

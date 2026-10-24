@@ -35,6 +35,10 @@ export interface CanvasState {
   zoomAt(factor: number, at: Point): void
   /** Zoom to 100% with the tile centered in a surface of `surface` px, and focus it. */
   zoomToTile(id: string, surface: { w: number; h: number }): void
+  /** Show every tile (see fitViewport). */
+  zoomToFit(surface: { w: number; h: number }): void
+  /** Pan just enough to bring a tile fully into view (see revealViewport). */
+  revealTile(id: string, surface: { w: number; h: number }): void
   addTile(tile: Tile): void
   removeTile(id: string): void
   /** Place a tile at canvas coordinates (rounded to whole px). */
@@ -67,16 +71,14 @@ export interface CanvasState {
 
 export const MIN_TILE = { w: 320, h: 200 }
 export const ZOOM = { min: 0.2, max: 1.5 }
-export const NEW_TILE = { w: 720, h: 440 }
+export const NEW_TILE = { w: 600, h: 420 }
+/** Space kept between tiles when placing a new one. */
+export const TILE_GAP = 96
 
 export function screenToCanvas(v: Viewport, p: Point): Point {
   return { x: (p.x - v.x) / v.zoom, y: (p.y - v.y) / v.zoom }
 }
 
-/**
- * Where a new tile of the given size should go so it is centered in a surface of
- * `surface` px. Nudged down-right while it would land exactly on an existing tile.
- */
 /**
  * Next zoom level, clamped. Terminals are only live at exactly 1, so zoom snaps to 1
  * when it lands near it or crosses it, and leaves 1 only on a later step.
@@ -110,15 +112,77 @@ export function linkCurve(a: Point, b: Point): { d: string; mid: Point } {
   }
 }
 
-export function placeNewTile(v: Viewport, surface: { w: number; h: number }, tiles: Tile[], size = NEW_TILE): Point {
-  const c = screenToCanvas(v, { x: surface.w / 2, y: surface.h / 2 })
-  let x = Math.round(c.x - size.w / 2)
-  let y = Math.round(c.y - size.h / 2)
-  while (tiles.some((t) => t.x === x && t.y === y)) {
-    x += 28
-    y += 28
+/**
+ * Where a new tile goes: the first one is centered in the view; later ones go right of the
+ * anchor (the focused tile), else below it, else further right, never overlapping a tile.
+ */
+export function placeNewTile(
+  v: Viewport,
+  surface: { w: number; h: number },
+  tiles: Tile[],
+  anchorId: string | null = null,
+  size = NEW_TILE
+): Point {
+  const anchor = tiles.find((t) => t.id === anchorId) ?? tiles.at(-1)
+  if (!anchor) {
+    const c = screenToCanvas(v, { x: surface.w / 2, y: surface.h / 2 })
+    return { x: Math.round(c.x - size.w / 2), y: Math.round(c.y - size.h / 2) }
   }
-  return { x, y }
+  // Keep a gap around every tile, so no port or edge ends up under the new tile.
+  const free = (p: Point) =>
+    !tiles.some(
+      (t) =>
+        p.x < t.x + t.w + TILE_GAP &&
+        p.x + size.w + TILE_GAP > t.x &&
+        p.y < t.y + t.h + TILE_GAP &&
+        p.y + size.h + TILE_GAP > t.y
+    )
+  const right = { x: anchor.x + anchor.w + TILE_GAP, y: anchor.y }
+  const below = { x: anchor.x, y: anchor.y + anchor.h + TILE_GAP }
+  if (free(right)) return right
+  if (free(below)) return below
+  // ponytail: linear scan to the right; a real packing search if people run dozens of tiles.
+  for (let p = right; ; p = { x: p.x + size.w + TILE_GAP, y: p.y }) if (free(p)) return p
+}
+
+/** Pan (zoom unchanged) just enough that `t` is fully inside a surface of `surface` px, with a margin. */
+export function revealViewport(v: Viewport, t: Tile, surface: { w: number; h: number }, margin = 24): Viewport {
+  const axis = (pos: number, start: number, len: number, view: number) => {
+    const a = pos + start * v.zoom
+    const b = a + len * v.zoom
+    if (b - a > view - 2 * margin || a < margin) return pos + margin - a // too big or off the start: align the start
+    if (b > view - margin) return pos - (b - (view - margin))
+    return pos
+  }
+  return { x: axis(v.x, t.x, t.w, surface.w), y: axis(v.y, t.y, t.h, surface.h), zoom: v.zoom }
+}
+
+/**
+ * The viewport that shows every tile, centered, never above 100%. Exactly 1 when everything
+ * fits at 100%, so terminals stay live.
+ */
+export function fitViewport(tiles: Tile[], surface: { w: number; h: number }, margin = 48): Viewport | null {
+  if (!tiles.length) return null
+  const x0 = Math.min(...tiles.map((t) => t.x))
+  const y0 = Math.min(...tiles.map((t) => t.y))
+  const x1 = Math.max(...tiles.map((t) => t.x + t.w))
+  const y1 = Math.max(...tiles.map((t) => t.y + t.h))
+  const fit = Math.min((surface.w - 2 * margin) / (x1 - x0), (surface.h - 2 * margin) / (y1 - y0))
+  const zoom = Math.max(ZOOM.min, Math.min(1, fit))
+  return {
+    x: Math.round(surface.w / 2 - ((x0 + x1) / 2) * zoom),
+    y: Math.round(surface.h / 2 - ((y0 + y1) / 2) * zoom),
+    zoom
+  }
+}
+
+/** `base`, or `base 2`, `base 3`… so tiles (and the "Handoff from" line) can be told apart. */
+export function uniqueTitle(base: string, tiles: Tile[]): string {
+  const taken = new Set(tiles.map((t) => t.title))
+  if (!taken.has(base)) return base
+  let n = 2
+  while (taken.has(`${base} ${n}`)) n++
+  return `${base} ${n}`
 }
 
 /** Links whose both ends are in `tiles`. */
@@ -175,6 +239,20 @@ export function createCanvasStore(initial: Partial<Pick<CanvasState, 'viewport' 
           focusedTileId: id,
           order: [...s.order.filter((o) => o !== id), id]
         }
+      }),
+
+    zoomToFit: (surface) =>
+      set((s) => {
+        const viewport = fitViewport(s.tiles, surface)
+        return viewport ? { viewport } : s
+      }),
+
+    revealTile: (id, surface) =>
+      set((s) => {
+        const t = s.tiles.find((t) => t.id === id)
+        if (!t) return s
+        const viewport = revealViewport(s.viewport, t, surface)
+        return viewport.x === s.viewport.x && viewport.y === s.viewport.y ? s : { viewport }
       }),
 
     addTile: (tile) =>

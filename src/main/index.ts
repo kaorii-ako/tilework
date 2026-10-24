@@ -1,4 +1,5 @@
 import { app, BrowserWindow, dialog, ipcMain } from 'electron'
+import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { homedir } from 'node:os'
 import { spawn } from 'node-pty'
@@ -6,9 +7,10 @@ import { IPC, type InputRequest, type KillRequest, type ResizeRequest, type Spaw
 import { PtyManager } from './pty-manager'
 import { defaultStatusFile, watchStatusFile } from './status-watcher'
 import { badCwdMessage, buildLaunch, commandExists, isDirectory, missingCommandMessage, validateSpawn } from './launch'
-import { loadPresets } from './presets'
+import { configPath, loadPresets } from './presets'
 import { readResult } from './transcript'
 import { WorkspaceStore, parseWorkspace } from './workspace-store'
+import { copyScript, installHook, isHookInstalled, readSettings } from './hook-install'
 
 let win: BrowserWindow | null = null
 
@@ -52,20 +54,48 @@ ipcMain.on(IPC.kill, (_e, { tileId }: KillRequest) => {
   if (isId(tileId)) ptys.kill(tileId)
 })
 
-const workspace = new WorkspaceStore(join(homedir(), '.config', 'agent-canvas', 'workspace.json'))
+const workspace = new WorkspaceStore(configPath('workspace.json'))
 ipcMain.handle(IPC.workspaceLoad, () => workspace.load())
 ipcMain.on(IPC.workspaceSave, (_e, ws: unknown) => {
   const valid = parseWorkspace(ws)
   if (valid) workspace.schedule(valid)
 })
 
+// The hook script ships inside the app (extraResources when packaged) and is copied to the config
+// folder, so settings.json points at a path that survives moving or updating the app.
+const hookSrc = () =>
+  app.isPackaged
+    ? join(process.resourcesPath, 'hooks', 'agent-canvas-hook.sh')
+    : join(app.getAppPath(), 'hooks', 'agent-canvas-hook.sh')
+const hookDest = configPath('hooks/agent-canvas-hook.sh')
+const claudeSettings = join(homedir(), '.claude', 'settings.json')
+ipcMain.handle(IPC.hookStatus, () => {
+  try {
+    return isHookInstalled(readSettings(claudeSettings))
+  } catch {
+    return false // unreadable: Install reports why
+  }
+})
+ipcMain.handle(IPC.hookInstall, () => {
+  try {
+    installHook(claudeSettings, hookSrc(), hookDest)
+    return { ok: true }
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : String(e) }
+  }
+})
+
 function createWindow(): void {
   win = new BrowserWindow({
-    width: 1200,
-    height: 800,
-    backgroundColor: '#0f1115',
+    width: 1400,
+    height: 900,
+    backgroundColor: '#0e1014',
     title: 'Agent Canvas',
+    // e2e starts hidden and shows the window itself on a spare workspace, so test runs don't
+    // pop up over your work; it keeps rendering while not on screen.
+    show: !process.env.AGENT_CANVAS_E2E,
     webPreferences: {
+      backgroundThrottling: !process.env.AGENT_CANVAS_E2E,
       preload: join(import.meta.dirname, '../preload/index.cjs'),
       contextIsolation: true,
       nodeIntegration: false,
@@ -81,6 +111,8 @@ function createWindow(): void {
 }
 
 app.whenReady().then(() => {
+  // Keep an installed hook script in step with this version of the app.
+  if (existsSync(hookDest)) copyScript(hookSrc(), hookDest)
   // PTYs inherit this env var, so the hook writes to the file we tail.
   process.env.AGENT_CANVAS_STATUS_FILE = defaultStatusFile()
   const claudeDir = join(homedir(), '.claude')

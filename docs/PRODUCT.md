@@ -32,7 +32,7 @@ Handoffs between tiles, loops, a voice planner, per-repo "studios", AppImage pac
 
 Electron + electron-vite, React, TypeScript (strict).
 
-- **Main process** (`src/main`). `PtyManager` wraps node-pty and keeps a `Map<tileId, IPty>`. A tile with no `command` gets the user's `$SHELL` (fallback `/bin/bash`) as a login shell (`-l`). Every PTY gets `AGENT_CANVAS_TILE_ID=<tileId>` in its env, which the status hooks (KAO-24) use to report back. Spawning an existing tileId replaces its PTY. All PTYs are killed on quit.
+- **Main process** (`src/main`). `PtyManager` wraps node-pty and keeps a `Map<tileId, IPty>`. A tile with no `command` gets the user's `$SHELL` (fallback `/bin/bash`) as a login shell (`-l`). Every PTY gets `AGENT_CANVAS_TILE_ID=<tileId>` in its env (and loses any inherited `CLAUDECODE` / `CLAUDE_CODE_*` session variables, which would stop a nested Claude Code from writing its transcript), which the status hooks (KAO-24) use to report back. Spawning an existing tileId replaces its PTY. All PTYs are killed on quit.
 - **IPC** (`src/shared/ipc.ts`). The only place channels and payloads are defined:
   - renderer → main: `pty:spawn {tileId, command?, args?, cwd?, cols, rows}` (invoke), `pty:input {tileId, data}`, `pty:resize {tileId, cols, rows}`, `pty:kill {tileId}`
   - main → renderer: `pty:data {tileId, data}`, `pty:exit {tileId, code}`

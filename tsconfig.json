@@ -13,5 +13,5 @@
     "esModuleInterop": true,
     "types": ["node", "electron-vite/node", "vite/client"]
   },
-  "include": ["src", "spikes", "electron.vite.config.ts"]
+  "include": ["src", "spikes", "e2e", "electron.vite.config.ts", "playwright.config.ts", "vitest.config.ts"]
 }

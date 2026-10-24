@@ -16,7 +16,9 @@ export const IPC = {
   presets: 'launcher:presets',
   pickFolder: 'launcher:pick-folder',
   workspaceLoad: 'workspace:load',
-  workspaceSave: 'workspace:save'
+  workspaceSave: 'workspace:save',
+  hookStatus: 'hook:status',
+  hookInstall: 'hook:install'
 } as const
 
 // renderer -> main
@@ -62,6 +64,9 @@ export interface ResultEvent {
   text: string
 }
 
+/** Result of installing the Claude Code hook into ~/.claude/settings.json. */
+export type HookInstallResult = { ok: true } | { ok: false; error: string }
+
 /** Shape of window.canvasApi exposed by the preload. */
 export interface CanvasApi {
   spawn(req: SpawnRequest): Promise<void>
@@ -78,6 +83,10 @@ export interface CanvasApi {
   loadWorkspace(): Promise<Workspace | null>
   /** Call on every layout change; main debounces the disk write. */
   saveWorkspace(ws: Workspace): void
+  /** Whether ~/.claude/settings.json runs the Agent Canvas hook for every event it needs. */
+  hookInstalled(): Promise<boolean>
+  /** Merge the hook into ~/.claude/settings.json (backup in settings.json.bak first). */
+  installHook(): Promise<HookInstallResult>
   onExit(cb: (e: ExitEvent) => void): () => void
   onStatus(cb: (e: StatusEvent) => void): () => void
   onResult(cb: (e: ResultEvent) => void): () => void

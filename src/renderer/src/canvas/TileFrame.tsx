@@ -1,6 +1,7 @@
 import { memo, useEffect, type PointerEvent as ReactPointerEvent } from 'react'
 import type { AgentState } from '../../../shared/status'
 import { canvasStore, dragTo, screenToCanvas, useCanvas } from './store'
+import { perFrame } from './perFrame'
 import { TerminalTile } from '../TerminalTile'
 
 /**
@@ -15,8 +16,11 @@ function track(
 ) {
   const el = e.currentTarget as HTMLElement
   el.setPointerCapture(e.pointerId)
-  const move = (ev: PointerEvent) => onMove({ x: ev.clientX, y: ev.clientY })
+  const frame = perFrame(onMove)
+  const move = (ev: PointerEvent) => frame({ x: ev.clientX, y: ev.clientY })
   const end = (ev: PointerEvent | null) => {
+    if (ev) frame.flush()
+    else frame.cancel()
     el.removeEventListener('pointermove', move)
     el.removeEventListener('pointerup', up)
     el.removeEventListener('pointercancel', cancel)
@@ -38,7 +42,7 @@ function track(
   if (escCancels) window.addEventListener('keydown', esc, true)
 }
 
-/** Drag a new link out of tile `from`'s output port; dropping on another tile links them. */
+/** Drag a new link out of tile `from`'s right edge; dropping anywhere on another tile links them. */
 function startLink(e: ReactPointerEvent, from: string) {
   if (e.button !== 0) return
   e.preventDefault()
@@ -63,26 +67,22 @@ function startLink(e: ReactPointerEvent, from: string) {
   )
 }
 
-const LABEL: Record<AgentState, string> = {
-  working: 'working',
-  idle: 'idle',
-  'needs-input': 'needs you',
-  exited: 'exited'
+const LABEL: Record<AgentState | 'shell', string> = {
+  shell: 'Shell',
+  working: 'Working',
+  idle: 'Ready',
+  'needs-input': 'Needs you',
+  exited: 'Exited'
 }
 
 /**
- * Live agent state from Claude Code hooks (KAO-24). Resets to "shell" whenever the
- * tile respawns: `spawnKey` changes exactly when TerminalTile starts a new PTY.
+ * One status dot from Claude Code hooks (KAO-24), named by its tooltip. Resets to "shell"
+ * whenever the tile respawns: `spawnKey` changes exactly when TerminalTile starts a new PTY.
  */
 const TileStatus = memo(function TileStatus({ tileId, spawnKey }: { tileId: string; spawnKey: string }) {
-  const state = useCanvas((s) => s.status[tileId])
+  const state = useCanvas((s) => s.status[tileId]) ?? 'shell'
   useEffect(() => () => canvasStore.getState().clearStatus(tileId), [tileId, spawnKey])
-  return (
-    <span className="tile-status" data-state={state ?? 'shell'}>
-      {state && <i className="dot" />}
-      {state ? LABEL[state] : 'shell'}
-    </span>
-  )
+  return <i className="dot" data-state={state} role="img" aria-label={LABEL[state]} title={LABEL[state]} />
 })
 
 /** Position, size, title bar and resize handle around one terminal. */
@@ -114,8 +114,10 @@ export const TileFrame = memo(function TileFrame({ id }: { id: string }) {
       onPointerDownCapture={() => canvasStore.getState().focusTile(id)}
     >
       <header className="tile-bar" onPointerDown={startDrag('move')}>
-        <span className="tile-title">{tile.title}</span>
         <TileStatus tileId={id} spawnKey={JSON.stringify([tile.command, tile.args, tile.shell, tile.cwd])} />
+        <span className="tile-title" title={tile.cwd}>
+          {tile.title}
+        </span>
         <button
           type="button"
           className="tile-close"
@@ -128,8 +130,11 @@ export const TileFrame = memo(function TileFrame({ id }: { id: string }) {
       </header>
       <TerminalTile tileId={id} command={tile.command} args={tile.args} shell={tile.shell} cwd={tile.cwd} live={live} />
       <div className="tile-resize" onPointerDown={startDrag('resize')} />
-      <div className="port port-in" title="Link input" />
-      <div className="port port-out" title="Drag to another tile to link" onPointerDown={(e) => startLink(e, id)} />
+      <div className="port-in" />
+      {/* The whole right edge starts a link; the dot in its middle shows where the line leaves. */}
+      <div className="link-edge" title="Drag onto another tile to link" onPointerDown={(e) => startLink(e, id)}>
+        <i className="port-out" />
+      </div>
     </section>
   )
 })

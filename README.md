@@ -15,9 +15,13 @@ Runs directly on the host; no distrobox, sudo or rpm-ostree needed.
 
 If node-pty fails to load after changing Node or Electron versions: `npx electron-builder install-app-deps`.
 
+## Using it
+
+Start an agent from the empty canvas, add a second with **+ New tile**, drag from the first tile's right edge onto the second to link them, and click **Send →** on the line when the first agent finishes. The **?** button in the bottom toolbar lists the rest.
+
 ## Claude Code hook
 
-Live tile status and handoffs come from `hooks/agent-canvas-hook.sh`, which you add to `~/.claude/settings.json` by hand (the app never edits it). See [docs/STATUS-HOOKS.md](docs/STATUS-HOOKS.md) for the snippet.
+Live tile status and handoffs come from `hooks/agent-canvas-hook.sh`. If it isn't in `~/.claude/settings.json`, the app shows a banner on launch: **Install** copies the script to `~/.config/agent-canvas/hooks/`, backs up `settings.json.bak` and appends the hook entries, leaving every other setting and hook alone. To add it by hand instead, see [docs/STATUS-HOOKS.md](docs/STATUS-HOOKS.md).
 On `Stop` the hook also forwards `transcript_path` from Claude Code's hook input. The app reads the last assistant message from that transcript (only for its own tiles, only under `~/.claude/`) and uses it as the tile's result for link handoffs.
 
 ## Scripts
@@ -28,4 +32,5 @@ On `Stop` the hook also forwards `transcript_path` from Claude Code's hook input
 | `npm run build` | Build main, preload and renderer into `out/` |
 | `npm start` | Run the built app |
 | `npm test` | Unit tests (vitest) |
+| `npm run e2e` | Build, then drive the real app with Playwright: create, drag, zoom, link, handoff, restart. Needs a desktop session (runs under X11/XWayland); uses a temporary home, so your own workspace is never touched, and opens its windows on workspace 2. `REAL_CLAUDE=1 npm run e2e -- real-claude` also runs two real Claude Code tiles (needs the hook installed) |
 | `npm run typecheck` | `tsc --noEmit` over everything |

@@ -4,6 +4,18 @@ import type { DataEvent, ExitEvent, SpawnRequest, StatusEvent } from '../shared/
 
 type SpawnFn = typeof ptySpawn
 
+/**
+ * A tile's environment. Drops Claude Code's own session variables, which leak in when the app
+ * is started from inside Claude Code: a nested claude would treat itself as a child session
+ * and skip writing the transcript that handoffs read.
+ */
+export function tileEnv(base: NodeJS.ProcessEnv, tileId: string): Record<string, string> {
+  const env: Record<string, string> = {}
+  for (const [k, v] of Object.entries(base))
+    if (v !== undefined && k !== 'CLAUDECODE' && !k.startsWith('CLAUDE_CODE_')) env[k] = v
+  return { ...env, TERM: 'xterm-256color', COLORTERM: 'truecolor', AGENT_CANVAS_TILE_ID: tileId }
+}
+
 /** Owns every PTY, keyed by tileId. The spawn function is injected so tests can fake it. */
 export class PtyManager {
   private ptys = new Map<string, IPty>()
@@ -23,7 +35,7 @@ export class PtyManager {
       cwd: cwd ?? os.homedir(),
       cols,
       rows,
-      env: { ...process.env, TERM: 'xterm-256color', COLORTERM: 'truecolor', AGENT_CANVAS_TILE_ID: tileId }
+      env: tileEnv(process.env, tileId)
     })
     this.ptys.set(tileId, pty)
     pty.onData((data) => this.onData({ tileId, data }))

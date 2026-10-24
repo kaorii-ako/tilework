@@ -9,7 +9,11 @@ import {
   linkCurve,
   nextZoom,
   outPort,
+  TILE_GAP,
+  fitViewport,
   placeNewTile,
+  revealViewport,
+  uniqueTitle,
   screenToCanvas
 } from './store'
 
@@ -28,15 +32,53 @@ describe('viewport math', () => {
   })
 
   it('places a new tile centered in the visible area, after panning', () => {
-    const p = placeNewTile({ x: -1000, y: -500, zoom: 1 }, { w: 1200, h: 800 }, [], { w: 400, h: 200 })
+    const p = placeNewTile({ x: -1000, y: -500, zoom: 1 }, { w: 1200, h: 800 }, [], null, { w: 400, h: 200 })
     expect(p).toEqual({ x: 1000 + 600 - 200, y: 500 + 400 - 100 })
   })
 
-  it('nudges a new tile off one that sits exactly in the same spot', () => {
+  it('places later tiles right of the anchor, then below, never overlapping', () => {
     const v = { x: 0, y: 0, zoom: 1 }
-    const first = placeNewTile(v, { w: 800, h: 600 }, [], { w: 400, h: 200 })
-    const second = placeNewTile(v, { w: 800, h: 600 }, [tile('a', first.x, first.y)], { w: 400, h: 200 })
-    expect(second).not.toEqual(first)
+    const size = { w: 400, h: 300 }
+    const a = tile('a', 0, 0)
+    expect(placeNewTile(v, { w: 800, h: 600 }, [a], 'a', size)).toEqual({ x: 400 + TILE_GAP, y: 0 })
+    const b = tile('b', 400 + TILE_GAP, 0)
+    // right of a is taken by b: go below a
+    expect(placeNewTile(v, { w: 800, h: 600 }, [a, b], 'a', size)).toEqual({ x: 0, y: 300 + TILE_GAP })
+    const c = tile('c', 0, 300 + TILE_GAP)
+    const p = placeNewTile(v, { w: 800, h: 600 }, [a, b, c], 'a', size)
+    for (const t of [a, b, c]) {
+      const overlaps = p.x < t.x + t.w && p.x + size.w > t.x && p.y < t.y + t.h && p.y + size.h > t.y
+      expect(overlaps).toBe(false)
+    }
+  })
+
+  it('defaults the anchor to the last tile', () => {
+    const p = placeNewTile({ x: 0, y: 0, zoom: 1 }, { w: 800, h: 600 }, [tile('a'), tile('b', 0, 1000)], null, {
+      w: 400,
+      h: 300
+    })
+    expect(p).toEqual({ x: 400 + TILE_GAP, y: 1000 })
+  })
+
+  it('revealViewport pans just enough to show the tile, and leaves a visible one alone', () => {
+    const v = { x: 0, y: 0, zoom: 1 }
+    expect(revealViewport(v, tile('a', 100, 100), { w: 1000, h: 800 })).toEqual(v)
+    // right edge at 1400 must come to 1000 - 24
+    expect(revealViewport(v, tile('a', 1000, 100), { w: 1000, h: 800 })).toEqual({ x: -424, y: 0, zoom: 1 })
+    expect(revealViewport(v, tile('a', -50, 100), { w: 1000, h: 800 })).toEqual({ x: 74, y: 0, zoom: 1 })
+  })
+
+  it('fitViewport shows every tile, centered, never above 100%', () => {
+    expect(fitViewport([], { w: 1000, h: 800 })).toBeNull()
+    expect(fitViewport([tile('a', 0, 0)], { w: 1000, h: 800 })).toEqual({ x: 300, y: 250, zoom: 1 })
+    const wide = fitViewport([tile('a', 0, 0), tile('b', 1600, 0)], { w: 1096, h: 800 })!
+    expect(wide.zoom).toBeCloseTo(0.5) // 2000px of tiles into 1000px
+    expect(wide.x).toBe(48)
+  })
+
+  it('uniqueTitle numbers repeated names', () => {
+    expect(uniqueTitle('Shell', [])).toBe('Shell')
+    expect(uniqueTitle('Shell', [tile('Shell'), tile('Shell 2')])).toBe('Shell 3')
   })
 
   it('dragTo converts the screen delta through zoom', () => {
@@ -76,6 +118,15 @@ describe('zoom', () => {
     expect(nextZoom(1.1, 0.8)).toBe(1) // crossed from above
     expect(nextZoom(0.95, 1.04)).toBe(1) // landed near
     expect(nextZoom(1, 0.9)).toBeCloseTo(0.9)
+  })
+
+  it('zoomToFit and revealTile update the viewport', () => {
+    const s = createCanvasStore({ tiles: [tile('a', 0, 0), tile('b', 3000, 0)] })
+    s.getState().zoomToFit({ w: 1000, h: 800 })
+    expect(s.getState().viewport.zoom).toBeLessThan(1)
+    s.getState().zoomToTile('a', { w: 1000, h: 800 })
+    s.getState().revealTile('b', { w: 1000, h: 800 })
+    expect(s.getState().viewport.x).toBe(1000 - 24 - 3400)
   })
 
   it('zoomToTile centers the tile at 100% and focuses it', () => {
