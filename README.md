@@ -15,6 +15,11 @@ Runs directly on the host; no distrobox, sudo or rpm-ostree needed.
 
 If node-pty fails to load after changing Node or Electron versions: `npx electron-builder install-app-deps`.
 
+## Claude Code hook
+
+Live tile status and handoffs come from `hooks/agent-canvas-hook.sh`, which you add to `~/.claude/settings.json` by hand (the app never edits it). See [docs/STATUS-HOOKS.md](docs/STATUS-HOOKS.md) for the snippet.
+On `Stop` the hook also forwards `transcript_path` from Claude Code's hook input. The app reads the last assistant message from that transcript (only for its own tiles, only under `~/.claude/`) and uses it as the tile's result for link handoffs.
+
 ## Scripts
 
 | Script | What it does |

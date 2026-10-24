@@ -12,6 +12,7 @@ export const IPC = {
   data: 'pty:data',
   exit: 'pty:exit',
   status: 'agent:status',
+  result: 'agent:result',
   presets: 'launcher:presets',
   pickFolder: 'launcher:pick-folder',
   workspaceLoad: 'workspace:load',
@@ -55,6 +56,11 @@ export interface StatusEvent {
   tileId: string
   state: AgentState
 }
+/** The last assistant message of a Claude Code tile, read from its transcript on Stop (KAO-33). */
+export interface ResultEvent {
+  tileId: string
+  text: string
+}
 
 /** Shape of window.canvasApi exposed by the preload. */
 export interface CanvasApi {
@@ -74,4 +80,5 @@ export interface CanvasApi {
   saveWorkspace(ws: Workspace): void
   onExit(cb: (e: ExitEvent) => void): () => void
   onStatus(cb: (e: StatusEvent) => void): () => void
+  onResult(cb: (e: ResultEvent) => void): () => void
 }

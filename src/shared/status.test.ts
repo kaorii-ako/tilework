@@ -21,6 +21,17 @@ describe('parseStatusLine', () => {
   it('parses a hook line', () => {
     expect(parseStatusLine('{"tile":"tile-1","event":"Stop","ts":1}')).toEqual({ tileId: 'tile-1', state: 'idle' })
   })
+  it('keeps the transcript path on Stop only', () => {
+    expect(parseStatusLine('{"tile":"t","event":"Stop","transcript":"/p.jsonl"}')).toEqual({
+      tileId: 't',
+      state: 'idle',
+      transcript: '/p.jsonl'
+    })
+    expect(parseStatusLine('{"tile":"t","event":"PreToolUse","transcript":"/p.jsonl"}')).toEqual({
+      tileId: 't',
+      state: 'working'
+    })
+  })
   it('rejects garbage', () => {
     expect(parseStatusLine('nope')).toBeUndefined()
     expect(parseStatusLine('{"tile":"a","event":"Nope"}')).toBeUndefined()

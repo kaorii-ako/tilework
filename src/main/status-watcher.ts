@@ -1,11 +1,10 @@
 import { closeSync, openSync, readSync, statSync, unwatchFile, watchFile, writeFileSync } from 'node:fs'
-import { parseStatusLine } from '../shared/status'
-import type { StatusEvent } from '../shared/ipc'
+import { parseStatusLine, type HookEvent } from '../shared/status'
 
 export const defaultStatusFile = (): string => `${process.env.XDG_RUNTIME_DIR || '/tmp'}/agent-canvas-status.jsonl`
 
 /** Tails the append-only file the hook writes to and reports each valid event. Truncates the file on start. */
-export function watchStatusFile(path: string, onEvent: (e: StatusEvent) => void): () => void {
+export function watchStatusFile(path: string, onEvent: (e: HookEvent) => void): () => void {
   writeFileSync(path, '')
   let offset = 0
   let partial = ''

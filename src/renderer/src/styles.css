@@ -254,6 +254,39 @@ body,
   text-anchor: middle;
   user-select: none;
 }
+/* Handoffs (KAO-33): the chip becomes a "Send →" button when a new result is waiting. */
+.link-chip {
+  pointer-events: all;
+  cursor: pointer;
+}
+.link-chip.send rect {
+  fill: var(--st, var(--edge-focus));
+}
+.link-chip.send .link-label {
+  fill: var(--bg);
+  font-weight: 600;
+}
+.link-chip.send:hover rect,
+.link-chip.send:focus-visible rect {
+  filter: brightness(1.2);
+}
+.link-chip .link-badge,
+.link-chip .link-note {
+  font-size: 10px;
+}
+.link-chip .link-badge {
+  fill: var(--st-idle);
+}
+.link-chip .link-note {
+  fill: var(--st-needs-input);
+}
+.link-menu button[aria-disabled='true'] {
+  color: var(--muted);
+  cursor: not-allowed;
+}
+.link-menu button[aria-disabled='true']:hover {
+  background: none;
+}
 .link-menu {
   position: fixed;
   z-index: 20;

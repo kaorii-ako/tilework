@@ -63,6 +63,8 @@ export const TerminalTile = memo(function TerminalTile({ tileId, command, args, 
       (e) => e.tileId === tileId && term.write(`\r\n\x1b[2m[process exited ${e.code}]\x1b[0m\r\n`)
     )
     const input = term.onData((data) => api.input({ tileId, data }))
+    // A real keystroke (not a terminal reply) restarts the handoff loop guard.
+    const typed = term.onKey(() => canvasStore.getState().userTyped())
     const resize = term.onResize(({ cols, rows }) => api.resize({ tileId, cols, rows }))
     api.spawn({ tileId, command, args, shell, cwd, cols: term.cols, rows: term.rows })
 
@@ -87,6 +89,7 @@ export const TerminalTile = memo(function TerminalTile({ tileId, command, args, 
       unsub()
       term.textarea?.removeEventListener('focus', onFocus)
       input.dispose()
+      typed.dispose()
       resize.dispose()
       offData()
       offExit()

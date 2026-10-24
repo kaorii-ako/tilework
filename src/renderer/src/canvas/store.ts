@@ -21,6 +21,14 @@ export interface CanvasState {
   linkDraft: { from: string; at: Point } | null
   /** Live agent state per tile from Claude Code hooks (KAO-24). No entry means a plain shell. */
   status: Record<string, AgentState>
+  /** Last assistant message per Claude Code tile, from its transcript on Stop (KAO-33). Shells have none. */
+  lastResult: Record<string, string>
+  /** Links whose source has a result not yet handed off: "Send →" when manual, queued when auto. */
+  handoffPending: Record<string, true>
+  /** Links the loop guard switched back to manual. */
+  loopPaused: Record<string, true>
+  /** Auto handoffs since the last user keystroke, for the loop guard. */
+  autoSends: { linkId: string; at: number }[]
 
   panBy(dx: number, dy: number): void
   /** Multiply zoom by `factor`, keeping the canvas point under `at` (screen px) still. */
@@ -43,8 +51,18 @@ export interface CanvasState {
   selectLink(id: string | null): void
   setLinkDraft(draft: CanvasState['linkDraft']): void
   setStatus(tileId: string, state: AgentState): void
-  /** Back to "shell", e.g. when the tile respawns. */
+  /** Back to "shell", e.g. when the tile respawns. Also forgets its last result. */
   clearStatus(tileId: string): void
+  /** A tile's agent finished with `text`; every link out of it gets a pending handoff. */
+  setResult(tileId: string, text: string): void
+  /** Any change clears the loop-paused note; turning auto on also resets the loop guard. */
+  setLinkMode(linkId: string, mode: Link['mode']): void
+  /** The pending handoff on `linkId` was delivered. `autoAt` records an auto send for the loop guard. */
+  handoffSent(linkId: string, autoAt?: number): void
+  /** Loop guard tripped: switch these links to manual and mark them paused. */
+  pauseLoop(linkIds: string[]): void
+  /** The user typed into a terminal: the loop guard starts over. */
+  userTyped(): void
 }
 
 export const MIN_TILE = { w: 320, h: 200 }
@@ -129,6 +147,10 @@ export function createCanvasStore(initial: Partial<Pick<CanvasState, 'viewport' 
     selectedLinkId: null,
     linkDraft: null,
     status: {},
+    lastResult: {},
+    handoffPending: {},
+    loopPaused: {},
+    autoSends: [],
 
     panBy: (dx, dy) => set((s) => ({ viewport: { ...s.viewport, x: s.viewport.x + dx, y: s.viewport.y + dy } })),
 
@@ -224,7 +246,41 @@ export function createCanvasStore(initial: Partial<Pick<CanvasState, 'viewport' 
     setStatus: (tileId, state) =>
       set((s) => (s.status[tileId] === state ? s : { status: { ...s.status, [tileId]: state } })),
 
-    clearStatus: (tileId) => set((s) => (tileId in s.status ? { status: withoutKey(s.status, tileId) } : s))
+    clearStatus: (tileId) =>
+      set((s) =>
+        tileId in s.status || tileId in s.lastResult
+          ? { status: withoutKey(s.status, tileId), lastResult: withoutKey(s.lastResult, tileId) }
+          : s
+      ),
+
+    setResult: (tileId, text) =>
+      set((s) => {
+        const pending = { ...s.handoffPending }
+        for (const l of s.links) if (l.fromTileId === tileId) pending[l.id] = true
+        return { lastResult: { ...s.lastResult, [tileId]: text }, handoffPending: pending }
+      }),
+
+    setLinkMode: (linkId, mode) =>
+      set((s) => ({
+        links: s.links.map((l) => (l.id === linkId ? { ...l, mode } : l)),
+        loopPaused: withoutKey(s.loopPaused, linkId),
+        autoSends: mode === 'auto' ? [] : s.autoSends
+      })),
+
+    handoffSent: (linkId, autoAt) =>
+      set((s) => ({
+        handoffPending: withoutKey(s.handoffPending, linkId),
+        autoSends: autoAt === undefined ? s.autoSends : [...s.autoSends, { linkId, at: autoAt }]
+      })),
+
+    pauseLoop: (linkIds) =>
+      set((s) => ({
+        links: s.links.map((l) => (linkIds.includes(l.id) ? { ...l, mode: 'manual' } : l)),
+        loopPaused: { ...s.loopPaused, ...Object.fromEntries(linkIds.map((id) => [id, true as const])) },
+        autoSends: []
+      })),
+
+    userTyped: () => set((s) => (s.autoSends.length ? { autoSends: [] } : s))
   }))
 }
 

@@ -5,8 +5,9 @@ Each tile's title bar shows a dot and a label: `working`, `idle`, `needs you`, `
 ## How it works
 
 1. `PtyManager` sets `AGENT_CANVAS_TILE_ID=<id>` (and the main process sets `AGENT_CANVAS_STATUS_FILE`) in every PTY.
-2. `hooks/agent-canvas-hook.sh <EventName>` appends `{"tile","event","ts"}` to that file. Pure bash builtins, about 2 ms, silent no-op outside a tile.
+2. `hooks/agent-canvas-hook.sh <EventName>` appends `{"tile","event","ts"}` to that file. On `Stop` it also reads the hook's JSON input from stdin and adds `"transcript"` (Claude Code's `transcript_path`): `{"tile","event":"Stop","ts","transcript":"/home/you/.claude/projects/.../<session>.jsonl"}`. Paths containing quotes, backslashes or control characters are left out. Pure bash builtins, about 2 ms, silent no-op outside a tile.
 3. Main tails the file (250 ms poll), maps events with `src/shared/status.ts`, and sends `agent:status` to the renderer.
+4. On `Stop` with a transcript (KAO-33), main reads the end of that JSONL, takes the last assistant message's text (capped at 4,000 characters, keeping the end) and sends it as `agent:result`. It only does this for live tile ids, and only for `.jsonl` files that are under `~/.claude/` after resolving symlinks and `..`. The renderer stores it as the tile's last result, which link handoffs paste into the next tile.
 
 | Event | State |
 | -- | -- |
@@ -36,7 +37,15 @@ Hooks for the same event run in parallel, so this one coexists with the others. 
 
 Claude Code started outside Agent Canvas has no `AGENT_CANVAS_TILE_ID`, so the hook exits immediately.
 
+If you installed the hook before KAO-33, nothing changes in `settings.json`: the same `Stop` entry now forwards `transcript_path`. Just pull the new script.
+
+## Handoffs (KAO-33)
+
+When a linked tile's Claude Code stops with a new result, the link's chip turns into **Send →**. Clicking it pastes `Handoff from <title>:` + the result + `Continue from this.` into the target as one bracketed paste, without Enter. Right-click a link (or its chip) for **Send handoff** and **Auto handoff**. Auto pastes and presses Enter on its own when the target is idle or a plain shell, and otherwise queues (chip shows `queued`) until it goes idle. An auto chain that sends more than 5 handoffs in 10 minutes without a keystroke is switched back to manual and marked `loop paused`. Nothing is ever pasted into a tile that has exited. Tiles without the hook (plain shells, codex, gemini) have no result, so Send is disabled with a tooltip.
+
 ## Known limits
 
 - `Notification` also fires for Claude's idle reminder, which shows as `needs you` until the next event.
 - Status is not cleared if Claude Code is killed without a `SessionEnd`.
+- Claude Code buffers transcript writes, so main waits 1 s after `Stop` before reading the transcript.
+- The loop guard is global: any keystroke in any tile resets it, and parallel auto chains share the 5-per-10-minutes budget.

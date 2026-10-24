@@ -7,6 +7,7 @@ import { PtyManager } from './pty-manager'
 import { defaultStatusFile, watchStatusFile } from './status-watcher'
 import { badCwdMessage, buildLaunch, commandExists, isDirectory, missingCommandMessage, validateSpawn } from './launch'
 import { loadPresets } from './presets'
+import { readResult } from './transcript'
 import { WorkspaceStore, parseWorkspace } from './workspace-store'
 
 let win: BrowserWindow | null = null
@@ -82,8 +83,22 @@ function createWindow(): void {
 app.whenReady().then(() => {
   // PTYs inherit this env var, so the hook writes to the file we tail.
   process.env.AGENT_CANVAS_STATUS_FILE = defaultStatusFile()
-  watchStatusFile(process.env.AGENT_CANVAS_STATUS_FILE, (e) => {
-    if (ptys.has(e.tileId)) win?.webContents.send(IPC.status, e)
+  const claudeDir = join(homedir(), '.claude')
+  watchStatusFile(process.env.AGENT_CANVAS_STATUS_FILE, ({ tileId, state, transcript }) => {
+    if (!ptys.has(tileId)) return
+    win?.webContents.send(IPC.status, { tileId, state })
+    // Only our own hook's Stop events for live tiles get here; readResult also confines the path to ~/.claude.
+    // Claude Code buffers transcript writes, so the final message can land just after Stop fires.
+    // ponytail: fixed delay; poll until the file stops growing if 1s ever proves short.
+    if (transcript)
+      setTimeout(
+        () =>
+          readResult(transcript, claudeDir).then(
+            (text) => text && ptys.has(tileId) && win?.webContents.send(IPC.result, { tileId, text }),
+            () => {}
+          ),
+        1000
+      )
   })
   createWindow()
 })
