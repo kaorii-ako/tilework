@@ -1,11 +1,13 @@
 import { app, BrowserWindow, dialog, ipcMain } from 'electron'
 import { join } from 'node:path'
+import { homedir } from 'node:os'
 import { spawn } from 'node-pty'
 import { IPC, type InputRequest, type KillRequest, type ResizeRequest, type SpawnRequest } from '../shared/ipc'
 import { PtyManager } from './pty-manager'
 import { defaultStatusFile, watchStatusFile } from './status-watcher'
 import { badCwdMessage, buildLaunch, commandExists, isDirectory, missingCommandMessage, validateSpawn } from './launch'
 import { loadPresets } from './presets'
+import { WorkspaceStore, parseWorkspace } from './workspace-store'
 
 let win: BrowserWindow | null = null
 
@@ -49,6 +51,13 @@ ipcMain.on(IPC.kill, (_e, { tileId }: KillRequest) => {
   if (isId(tileId)) ptys.kill(tileId)
 })
 
+const workspace = new WorkspaceStore(join(homedir(), '.config', 'agent-canvas', 'workspace.json'))
+ipcMain.handle(IPC.workspaceLoad, () => workspace.load())
+ipcMain.on(IPC.workspaceSave, (_e, ws: unknown) => {
+  const valid = parseWorkspace(ws)
+  if (valid) workspace.schedule(valid)
+})
+
 function createWindow(): void {
   win = new BrowserWindow({
     width: 1200,
@@ -79,4 +88,7 @@ app.whenReady().then(() => {
   createWindow()
 })
 app.on('window-all-closed', () => app.quit())
-app.on('before-quit', () => ptys.killAll())
+app.on('before-quit', () => {
+  workspace.flush()
+  ptys.killAll()
+})

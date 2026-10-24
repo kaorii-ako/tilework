@@ -26,3 +26,16 @@ export interface Preset {
   /** Run `command` as a shell string via the login shell (quotes, pipes, aliases). */
   shell?: boolean
 }
+/** Canvas pan (px) and zoom factor. */
+export interface Viewport {
+  x: number
+  y: number
+  zoom: number
+}
+
+/** What is persisted to workspace.json. Tiles are the same `Tile` the canvas uses. */
+export interface Workspace {
+  version: 1
+  viewport: Viewport
+  tiles: Tile[]
+}

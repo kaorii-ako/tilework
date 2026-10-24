@@ -1,4 +1,5 @@
 import type { AgentState } from './status'
+import type { Workspace } from './types'
 
 /** Every IPC channel and its payload, defined once. Main, preload and renderer import from here. */
 import type { Preset } from './types'
@@ -12,7 +13,9 @@ export const IPC = {
   exit: 'pty:exit',
   status: 'agent:status',
   presets: 'launcher:presets',
-  pickFolder: 'launcher:pick-folder'
+  pickFolder: 'launcher:pick-folder',
+  workspaceLoad: 'workspace:load',
+  workspaceSave: 'workspace:save'
 } as const
 
 // renderer -> main
@@ -65,6 +68,10 @@ export interface CanvasApi {
   presets(): Promise<Preset[]>
   /** Native folder picker; null if cancelled. */
   pickFolder(): Promise<string | null>
+  /** Saved layout, or null when none/corrupt (a corrupt file is backed up to workspace.json.bak). */
+  loadWorkspace(): Promise<Workspace | null>
+  /** Call on every layout change; main debounces the disk write. */
+  saveWorkspace(ws: Workspace): void
   onExit(cb: (e: ExitEvent) => void): () => void
   onStatus(cb: (e: StatusEvent) => void): () => void
 }

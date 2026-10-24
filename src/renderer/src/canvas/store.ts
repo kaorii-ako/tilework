@@ -1,12 +1,7 @@
 import { createStore, useStore } from 'zustand'
-import type { Tile } from '../../../shared/types'
+import type { Tile, Viewport } from '../../../shared/types'
 
-/** screen = canvas * zoom + (x, y). So (x, y) is where the canvas origin sits on screen. */
-export interface Viewport {
-  x: number
-  y: number
-  zoom: number
-}
+export type { Viewport }
 
 export interface Point {
   x: number
