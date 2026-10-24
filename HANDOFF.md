@@ -1,30 +1,26 @@
 # Handoff
 
-Updated 2026-10-23, when merging #3 (KAO-25).
+Updated 2026-10-24, after the KAO-26, 31, 32 and 33 chain. All PRs are merged; there are no open PRs.
 
 ## Where things stand
-Main now has:
-- KAO-21 (scaffold)
-- KAO-28 (#4, lint and format)
-- KAO-22 (#5, canvas: pan, hybrid zoom, drag, resize, focus)
-- KAO-24 (#1, status badges)
-- KAO-25 (#3, launcher)
-
-How the merged pieces fit:
-- **Launcher:** opens with "+ New tile" or Ctrl+Shift+N and adds tiles through `canvasStore.addTile()` with `placeNewTile()`. Tiles carry `command`, `args`, `shell`, `presetId` and `cwd`.
-- **Status badges:** shown in `TileFrame`'s title bar by `TileStatus`. A badge resets to "shell" whenever the tile respawns, meaning its command, args, shell or cwd changed. Main sends `exited` when a PTY dies on its own.
-- Checked in the running app: a launched custom command runs in its folder, fires the hook and shows "working". The badge stays visible while zoomed out and turns "exited" on exit.
-
-Still in flight:
-- #6 KAO-23 (zoom spike doc), merged right after this.
-- The launcher-focus bug: a new issue, worked by a haiku agent. Its PR stays open for review.
-- #2 KAO-26 (save and restore layout), being rebased and wired up by a sonnet agent. It gets pushed to #2 and isn't merged.
+Main has the whole MVP plus links and handoffs:
+- KAO-21 scaffold, KAO-28 lint/format, KAO-22 canvas, KAO-23 zoom spike, KAO-24 status badges, KAO-25 launcher.
+- KAO-26 (#2): save/restore of `~/.config/agent-canvas/workspace.json` (tiles, viewport, links). `startWorkspace()` restores on mount, saves debounced on every change, and flushes on `beforeunload`.
+- KAO-31 (#7): the launcher takes keyboard focus on open and gives it back to a terminal on close.
+- KAO-32 (#8): links between tiles. `Link {id, fromTileId, toTileId, mode}`, `links` in `canvasStore`, SVG layer under the tiles, ports on tile edges, status colour on lines. Agent status now lives in `canvasStore` too.
+- KAO-33 (#9): handoffs. The Stop hook forwards `transcript_path`; main reads the last assistant message (only `.jsonl` under `~/.claude/`, capped at 4,000 chars) and sends it over `agent:result`. Manual "Send →" chip, auto mode (queues while the target is busy), loop guard (5 handoffs / 10 min without a keystroke, then back to manual with "loop paused"). `src/renderer/src/canvas/handoff.ts` holds the logic.
 
 ## Next step
-1. Review the launcher-focus PR and #2 (KAO-26), then merge them.
-2. Then the MVP is complete. Kao tries it by hand: trackpad pan and pinch, and restoring 4 tiles after a restart.
+Kao tries it by hand (checklist in the PR table of the last chat), then decides the open questions below. KAO-27, KAO-29 and KAO-30 were not run (KAO-29: typescript-eslint once it supports TypeScript 7; KAO-30: coloured zoom snapshots).
+
+## Open decisions
+- Strip `CLAUDE_CODE_*` env vars from tile PTYs? If the app is launched from inside a Claude Code session, tiles inherit a variable that disables transcripts, so handoffs never get a result.
+- Loop guard is global (any keystroke resets it, parallel auto chains share the limit). Make it per chain?
+- A link can be dropped anywhere on the target tile, not only on the input port.
+- `docs/PRODUCT.md` does not list the `agent:result` channel or the links and handoff model yet.
 
 ## Watch out for
-- KAO-26 should restore through `canvasStore.getState().setLayout()` and save from `canvasStore.subscribe()`, debounced. Tiles have to keep `command`, `args`, `shell` and `cwd`, or restored tiles come back as plain shells.
+- The hook must be in `~/.claude/settings.json` by hand (`docs/STATUS-HOOKS.md`). Claude Code writes the transcript slightly after Stop fires, so main waits 1 s before reading it.
+- To drive the app from a script: `node_modules/.bin/electron . --ozone-platform=x11 --remote-debugging-port=<port>`. On the default Wayland backend CDP input stalls. Unset `CLAUDE_CODE_*` first if the tiles run claude.
 - Snapshots are plain text. For colours, add `@xterm/addon-serialize`.
-- To drive the app from a script, run `npx electron-vite dev -- --remote-debugging-port=9339` and dispatch DOM events inside the page. CDP `Input.*` events hang while the window is covered.
+- A stale stash ("stale local HANDOFF draft") sits in the main checkout; it is an old draft, safe to drop.
