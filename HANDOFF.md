@@ -19,7 +19,8 @@ Updated 2026-10-25, after Tilework 0.2.0.
 - **Merging:** PRs are merged by fast-forwarding main locally and pushing. GitHub's squash and rebase merges stamp the account's primary (school) email until email privacy is on.
 
 ## Next steps
-1. **Product Hunt:** everything is ready in `docs/LAUNCH.md` and `docs/launch/`. Claude Code's permission system blocked Claude in Chrome from opening producthunt.com/posts/new ("Real-World Transactions"). Tawin either allows that action, then Claude fills in the form in Browser 2 and stops before the final click, or Tawin submits it by hand.
+1. **Product Hunt: scheduled.** It goes live at 00:01 PT on Monday 2026-10-26 (14:01 in Bangkok), at https://www.producthunt.com/products/tilework. On launch day: answer every comment, and post the Show HN the next day (`docs/LAUNCH.md`). The pre-launch dashboard suggests a website badge and a forum thread.
+   Old note: everything is ready in `docs/LAUNCH.md` and `docs/launch/`. Claude Code's permission system blocked Claude in Chrome from opening producthunt.com/posts/new ("Real-World Transactions"). Tawin either allows that action, then Claude fills in the form in Browser 2 and stops before the final click, or Tawin submits it by hand.
 2. **GitHub email privacy:** Settings → Emails: "Keep my email addresses private" and "Block command line pushes that expose my email".
 3. **Then Show HN and Reddit,** per `docs/LAUNCH.md`.
 4. **Ideas from the research, not yet issues:** shared notes tiles (a markdown file agents can read and write), cleaning up a tile's worktree when it closes, status for Codex and Gemini.

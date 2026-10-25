@@ -2,6 +2,8 @@
 
 **Run many coding agents side by side on an infinite canvas of real terminals. Built for Linux.**
 
+[Tilework on Product Hunt](https://www.producthunt.com/products/tilework)
+
 Claude Code, Codex, Gemini CLI or a plain shell: each one runs in a real terminal tile (a real PTY, not an imitation). Pan, zoom and arrange them however you like, see at a glance which agents are working, idle or waiting on you, and wire them together so one agent's result flows into the next.
 
 ![A real run: Planner, Builder and Reviewer Claude Code tiles handing off with Send →](docs/demo.gif)
