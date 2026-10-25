@@ -267,3 +267,39 @@ test('a Claude tile resumes its saved session after a restart, if the transcript
   await expect(tile(page, 'B').locator('.tile-snapshot')).toContainText('CLAUDE-ARGS:[]', { timeout: 10_000 })
   await app.close()
 })
+
+test('a desktop notification says when an agent finishes, unless turned off in Help', async () => {
+  const home = tempHome()
+  seedWorkspace(home, {
+    version: 1,
+    viewport: { x: 0, y: 0, zoom: 1 },
+    tiles: [{ id: 'a', title: 'Builder', x: 40, y: 40, w: 500, h: 300 }],
+    links: []
+  })
+  const { app, page } = await launch(home)
+  await expect(tiles(page)).toHaveCount(1)
+  // Record notifications instead of showing them, and act as if the window is in the background.
+  await page.evaluate(() => {
+    const w = window as unknown as { sent: string[]; Notification: unknown }
+    w.sent = []
+    w.Notification = class {
+      constructor(text: string) {
+        w.sent.push(text)
+      }
+    }
+    document.hasFocus = () => false
+  })
+  const status = join(home, 'agent-canvas-status.jsonl')
+  const finish = () => appendFileSync(status, '{"tile":"a","event":"UserPromptSubmit"}\n{"tile":"a","event":"Stop"}\n')
+  const sent = () => page.evaluate(() => (window as unknown as { sent: string[] }).sent)
+  finish()
+  await expect.poll(sent).toEqual(['Builder is done'])
+
+  await page.getByRole('button', { name: 'Help' }).click()
+  await page.getByLabel(/Notify me/).uncheck()
+  finish()
+  await expect(tile(page, 'Builder').locator('.dot')).toHaveAttribute('data-state', 'idle')
+  await page.waitForTimeout(800)
+  expect(await sent()).toEqual(['Builder is done'])
+  await app.close()
+})

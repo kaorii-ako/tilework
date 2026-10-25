@@ -5,12 +5,24 @@ import { Canvas } from './canvas/Canvas'
 import { canvasStore } from './canvas/store'
 import { startWorkspace } from './workspace'
 import { ptyWrite, startHandoffs } from './canvas/handoff'
+import { notifyEnabled, notifyText } from './canvas/notify'
 
 // Restores the saved layout (or adds one starting shell tile) and keeps it saved.
 void startWorkspace(canvasStore)
 // One status listener for the whole app; tiles and link lines read it from the store.
 window.canvasApi.onStatus((e) => {
-  canvasStore.getState().setStatus(e.tileId, e.state)
+  const s = canvasStore.getState()
+  // KAO-49: a desktop notification when an agent finishes or needs you while you're elsewhere.
+  const text = notifyText(s.status[e.tileId], e.state, s.tiles.find((t) => t.id === e.tileId)?.title ?? 'A tile')
+  if (text && notifyEnabled() && !document.hasFocus()) {
+    const n = new Notification(text, { silent: false })
+    n.onclick = () => {
+      window.focus()
+      const r = document.querySelector('.surface')?.getBoundingClientRect()
+      if (r) canvasStore.getState().zoomToTile(e.tileId, { w: r.width, h: r.height })
+    }
+  }
+  s.setStatus(e.tileId, e.state)
   if (e.session) canvasStore.getState().setSession(e.tileId, e.session)
 })
 // Handoffs (KAO-33): a tile's result marks its links pending; auto links deliver on their own.

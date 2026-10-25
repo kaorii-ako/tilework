@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useCanvas } from './store'
+import { notifyEnabled, setNotifyEnabled } from './notify'
 
 const HINT_KEY = 'agent-canvas.link-hint-done'
 
@@ -61,6 +62,23 @@ const HELP: [string, string][] = [
   ['Zoom', 'Ctrl+scroll or pinch; click a zoomed-out tile to work in it']
 ]
 
+function NotifyToggle() {
+  const [on, setOn] = useState(notifyEnabled)
+  return (
+    <label className="help-toggle">
+      <input
+        type="checkbox"
+        checked={on}
+        onChange={(e) => {
+          setNotifyEnabled(e.target.checked)
+          setOn(e.target.checked)
+        }}
+      />
+      Notify me when an agent finishes or needs me (while Tilework isn’t focused)
+    </label>
+  )
+}
+
 function Help({ onClose }: { onClose(): void }) {
   useEffect(() => {
     const close = (e: Event) => {
@@ -85,6 +103,7 @@ function Help({ onClose }: { onClose(): void }) {
           </div>
         ))}
       </dl>
+      <NotifyToggle />
     </div>
   )
 }

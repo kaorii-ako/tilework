@@ -7,7 +7,7 @@ Claude Code, Codex, Gemini CLI or a plain shell: each one runs in a real termina
 ![Three Claude Code tiles linked Plan → Build → Review](docs/screenshot.png)
 
 - **Real terminals.** xterm.js on node-pty. Your agents, your shell, your dotfiles.
-- **Live status.** A dot per tile: working, idle, or needs you (from Claude Code hooks).
+- **Live status.** A dot per tile: working, idle, or needs you (from Claude Code hooks), plus a desktop notification when an agent finishes or needs you while you're in another window.
 - **Handoffs.** Drag a line from one tile to another. When the first agent finishes, **Send →** pastes its result plus your instruction into the next.
 - **Workflows.** Start Plan → Build → Review, Build ↔ Review, Research → Write or Quick fix in one click, or save your own canvas as a workflow.
 - **Remembers your layout** between launches, and Claude Code tiles pick up their conversation where they left off.
