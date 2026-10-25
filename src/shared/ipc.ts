@@ -17,6 +17,7 @@ export const IPC = {
   focusTile: 'agent:focus-tile',
   presets: 'launcher:presets',
   pickFolder: 'launcher:pick-folder',
+  createWorktree: 'launcher:create-worktree',
   workspaceLoad: 'workspace:load',
   workspaceSave: 'workspace:save',
   hookStatus: 'hook:status',
@@ -77,6 +78,9 @@ export interface FocusTileEvent {
   tileId: string
 }
 
+/** A tile's own git worktree (KAO-50), or why it couldn't be made. */
+export type WorktreeResult = { ok: true; path: string; branch: string } | { ok: false; error: string }
+
 /** Result of installing the Claude Code hook into ~/.claude/settings.json. */
 export type HookInstallResult = { ok: true } | { ok: false; error: string }
 
@@ -92,6 +96,8 @@ export interface CanvasApi {
   presets(): Promise<Preset[]>
   /** Native folder picker; null if cancelled. */
   pickFolder(): Promise<string | null>
+  /** Make a new git worktree next to the repo that holds `folder`, on a new tilework/<id> branch. */
+  createWorktree(folder: string): Promise<WorktreeResult>
   /** Saved layout, or null when none/corrupt (a corrupt file is backed up to workspace.json.bak). */
   loadWorkspace(): Promise<Workspace | null>
   /** Call on every layout change; main debounces the disk write. */

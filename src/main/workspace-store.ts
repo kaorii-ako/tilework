@@ -27,6 +27,7 @@ function parseTile(t: any): Tile | null {
   if (t.presetId !== undefined) tile.presetId = t.presetId
   // A bad session id only costs the resume, so drop it rather than the tile.
   if (typeof t.sessionId === 'string' && SESSION_ID.test(t.sessionId)) tile.sessionId = t.sessionId
+  if (str(t.branch, 200) && t.branch) tile.branch = t.branch
   return tile
 }
 

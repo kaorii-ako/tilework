@@ -5,6 +5,8 @@ export interface LaunchChoice {
   preset: Preset
   cwd?: string
   title?: string
+  /** Set when the tile got its own git worktree (KAO-50); cwd is then that worktree. */
+  branch?: string
 }
 
 const CUSTOM: Preset = { id: 'custom', name: 'Custom command', command: '' }
@@ -119,10 +121,18 @@ export function Launcher({
   const [more, setMore] = useState(false)
   const [custom, setCustom] = useState('')
   const [title, setTitle] = useState('')
+  const [ownWorktree, setOwnWorktree] = useState(false)
+  const [error, setError] = useState('')
 
-  const launch = (preset: Preset) => {
+  const launch = async (preset: Preset) => {
     if (cwd) saveRecent(cwd)
-    onLaunch({ preset, cwd: cwd || undefined, title: title.trim() || undefined })
+    const choice: LaunchChoice = { preset, cwd: cwd || undefined, title: title.trim() || undefined }
+    if (ownWorktree) {
+      const wt = await window.canvasApi.createWorktree(cwd)
+      if (!wt.ok) return setError(wt.error)
+      Object.assign(choice, { cwd: wt.path, branch: wt.branch })
+    }
+    onLaunch(choice)
   }
   const launchCustom = () => {
     // Passed unsplit to `$SHELL -lc`, so quotes, pipes and aliases work.
@@ -193,7 +203,23 @@ export function Launcher({
               </button>
             </form>
             <input placeholder="Tile name (optional)" value={title} onChange={(e) => setTitle(e.target.value)} />
+            <label className="check">
+              <input
+                type="checkbox"
+                checked={ownWorktree}
+                onChange={(e) => {
+                  setOwnWorktree(e.target.checked)
+                  setError('')
+                }}
+              />
+              Own git worktree (a new branch next to the repo, so agents don’t step on each other)
+            </label>
           </div>
+        )}
+        {error && (
+          <p className="launcher-error" role="alert">
+            {error}
+          </p>
         )}
       </div>
     </div>

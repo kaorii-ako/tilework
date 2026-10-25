@@ -118,6 +118,11 @@ export const TileFrame = memo(function TileFrame({ id }: { id: string }) {
         <span className="tile-title" title={tile.cwd}>
           {tile.title}
         </span>
+        {tile.branch && (
+          <span className="tile-branch" title={`git worktree on ${tile.branch}`}>
+            {tile.branch}
+          </span>
+        )}
         <button
           type="button"
           className="tile-close"

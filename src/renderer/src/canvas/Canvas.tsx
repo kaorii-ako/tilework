@@ -203,7 +203,7 @@ export function Canvas() {
     return { w: r.width, h: r.height }
   }
 
-  const launch = ({ preset, cwd, title }: LaunchChoice) => {
+  const launch = ({ preset, cwd, title, branch }: LaunchChoice) => {
     setLauncherOpen(false)
     const s = canvasStore.getState()
     const size = surfaceSize()
@@ -218,6 +218,7 @@ export function Canvas() {
       shell: preset.shell,
       presetId: preset.id,
       cwd,
+      branch,
       ...pos,
       ...NEW_TILE
     })

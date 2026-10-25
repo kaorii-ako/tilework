@@ -10,6 +10,7 @@ Claude Code, Codex, Gemini CLI or a plain shell: each one runs in a real termina
 - **Live status.** A dot per tile: working, idle, or needs you (from Claude Code hooks), plus a desktop notification when an agent finishes or needs you while you're in another window.
 - **Handoffs.** Drag a line from one tile to another. When the first agent finishes, **Send →** pastes its result plus your instruction into the next.
 - **Workflows.** Start Plan → Build → Review, Build ↔ Review, Research → Write or Quick fix in one click, or save your own canvas as a workflow.
+- **Worktrees.** Tick **Own git worktree** under More options and the tile runs on its own branch next to the repo, so parallel agents never edit the same checkout.
 - **Remembers your layout** between launches, and Claude Code tiles pick up their conversation where they left off.
 - **Nublet.** If you use the [Nublet](https://github.com/kaorii-ako/nublet) GNOME extension, your tiles show up in the top bar.
 

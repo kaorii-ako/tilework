@@ -18,6 +18,7 @@ import {
 } from './launch'
 import { configPath, loadPresets } from './presets'
 import { readResult } from './transcript'
+import { createWorktree } from './worktree'
 import { WorkspaceStore, parseWorkspace } from './workspace-store'
 import { copyScript, installHook, isHookInstalled, readSettings } from './hook-install'
 import { loadWorkflows, saveWorkflows } from './workflows-store'
@@ -53,6 +54,7 @@ ipcMain.handle(IPC.spawn, async (_e, req: SpawnRequest) => {
   ptys.spawn({ ...req, command: launch.file, args: launch.args })
 })
 ipcMain.handle(IPC.presets, () => loadPresets())
+ipcMain.handle(IPC.createWorktree, (_e, folder: unknown) => createWorktree(folder))
 ipcMain.handle(IPC.pickFolder, async () => {
   const r = win ? await dialog.showOpenDialog(win, { properties: ['openDirectory'] }) : null
   return r && !r.canceled ? r.filePaths[0] : null

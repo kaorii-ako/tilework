@@ -1,4 +1,5 @@
 import { expect, test } from '@playwright/test'
+import { execFileSync } from 'node:child_process'
 import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { dragLink, launch, newShell, seedWorkspace, tempHome, tile, tiles, zoomOf } from './app'
@@ -301,5 +302,42 @@ test('a desktop notification says when an agent finishes, unless turned off in H
   await expect(tile(page, 'Builder').locator('.dot')).toHaveAttribute('data-state', 'idle')
   await page.waitForTimeout(800)
   expect(await sent()).toEqual(['Builder is done'])
+  await app.close()
+})
+
+test('New tile → Own git worktree runs the tile in a fresh worktree and shows its branch', async () => {
+  const home = tempHome()
+  const repo = join(home, 'app')
+  execFileSync('git', ['init', '-q', repo])
+  writeFileSync(join(repo, 'a.txt'), 'a')
+  execFileSync('git', ['-C', repo, 'add', '.'])
+  execFileSync('git', ['-C', repo, '-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-qm', 'init'])
+  seedWorkspace(home, {
+    version: 1,
+    viewport: { x: 0, y: 0, zoom: 1 },
+    tiles: [{ id: 'a', title: 'A', x: 40, y: 40, w: 500, h: 300 }],
+    links: []
+  })
+  const { app, page } = await launch(home)
+  await expect(tiles(page)).toHaveCount(1)
+  const dialog = page.getByRole('dialog', { name: 'New tile' })
+  const open = async (folder: string) => {
+    await page.getByRole('button', { name: '+ New tile' }).click()
+    await dialog.getByLabel('Folder').fill(folder)
+    await dialog.getByRole('button', { name: 'More options' }).click()
+    await dialog.getByLabel(/Own git worktree/).check()
+    await dialog.getByRole('button', { name: 'Shell', exact: true }).click()
+  }
+
+  await open(home) // not a repo: the launcher stays open and says why
+  await expect(dialog.getByRole('alert')).toHaveText('That folder isn’t in a git repo.')
+  await page.keyboard.press('Escape')
+
+  await open(repo)
+  await expect(tiles(page)).toHaveCount(2)
+  const branch = page.locator('.tile-branch')
+  await expect(branch).toHaveText(/^tilework\/\w+$/)
+  const name = (await branch.textContent())!.split('/')[1]
+  expect(existsSync(join(home, `app-${name}`, 'a.txt'))).toBe(true)
   await app.close()
 })

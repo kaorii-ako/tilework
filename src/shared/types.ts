@@ -12,6 +12,8 @@ export interface Tile {
   cwd?: string
   /** Last Claude Code session in this tile; resumed on the next launch if its transcript still exists (KAO-48). */
   sessionId?: string
+  /** Branch of the tile's own git worktree, when it was started with one (KAO-50). */
+  branch?: string
   /** Canvas-space position and size in px. */
   x: number
   y: number

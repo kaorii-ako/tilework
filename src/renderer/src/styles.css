@@ -109,6 +109,27 @@ input:focus-visible {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.tile-branch {
+  flex: none;
+  max-width: 40%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font:
+    11px/1 ui-monospace,
+    monospace;
+  color: var(--muted);
+}
+.launcher .check {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  color: var(--muted);
+}
+.launcher-error {
+  margin: 8px 0 0;
+  color: var(--st-needs-input);
+}
 .tile-close {
   width: 24px;
   height: 24px;

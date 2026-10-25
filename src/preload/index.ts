@@ -22,6 +22,7 @@ const api: CanvasApi = {
   kill: (req) => ipcRenderer.send(IPC.kill, req),
   presets: () => ipcRenderer.invoke(IPC.presets),
   pickFolder: () => ipcRenderer.invoke(IPC.pickFolder),
+  createWorktree: (folder) => ipcRenderer.invoke(IPC.createWorktree, folder),
   loadWorkspace: () => ipcRenderer.invoke(IPC.workspaceLoad),
   saveWorkspace: (ws) => ipcRenderer.send(IPC.workspaceSave, ws),
   hookInstalled: () => ipcRenderer.invoke(IPC.hookStatus),
