@@ -40,7 +40,7 @@ export function handoffBlocker(s: CanvasState, linkId: string): string | null {
   if (!s.lastResult[link.fromTileId])
     return s.status[link.fromTileId]
       ? `${title(link.fromTileId)} hasn't finished a reply yet.`
-      : `${title(link.fromTileId)} has no result to hand off. Only Claude Code tiles with the Agent Canvas hook report one.`
+      : `${title(link.fromTileId)} has no result to hand off. Only Claude Code tiles with the Tilework hook report one.`
   if (!canReceive(s, link.toTileId)) return `${title(link.toTileId)} has exited, so there is nowhere to paste.`
   return null
 }

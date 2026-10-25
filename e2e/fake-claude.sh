@@ -1,5 +1,5 @@
 #!/bin/sh
-# Stands in for Claude Code in e2e: waits until ~/.claude/settings.json has the Agent Canvas hook,
+# Stands in for Claude Code in e2e: waits until ~/.claude/settings.json has the Tilework hook,
 # then fires it the way Claude Code would (command from settings.json, hook JSON on stdin).
 settings="$HOME/.claude/settings.json"
 hook() { # $1 = event, stdin = hook input

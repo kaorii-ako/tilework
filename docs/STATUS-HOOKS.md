@@ -37,7 +37,7 @@ By hand: merge this into `~/.claude/settings.json`. Each event holds an array, s
 
 Hooks for the same event run in parallel, so this one coexists with the others. If an event already has a matcher group with `"hooks": [...]`, you can instead add the command object to that inner array.
 
-Claude Code started outside Agent Canvas has no `AGENT_CANVAS_TILE_ID`, so the hook exits immediately.
+Claude Code started outside Tilework has no `AGENT_CANVAS_TILE_ID`, so the hook exits immediately.
 
 If you installed the hook before KAO-33, nothing changes in `settings.json`: the same `Stop` entry now forwards `transcript_path`. Just pull the new script.
 

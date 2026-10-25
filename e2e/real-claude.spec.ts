@@ -6,7 +6,7 @@ import { join } from 'node:path'
 import { launch, seedWorkspace, tempHome, tile } from './app'
 
 // Opt-in, costs a few cheap model calls: REAL_CLAUDE=1 npm run e2e -- real-claude
-// Needs claude logged in and the Agent Canvas hook installed in ~/.claude/settings.json.
+// Needs claude logged in and the Tilework hook installed in ~/.claude/settings.json.
 test.skip(!process.env.REAL_CLAUDE, 'set REAL_CLAUDE=1 to run against real Claude Code')
 test.setTimeout(240_000)
 

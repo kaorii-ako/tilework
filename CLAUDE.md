@@ -1,4 +1,4 @@
-# Agent Canvas
+# Tilework (repo: agent-canvas)
 
 Read `docs/PRODUCT.md` first. It has the product, the branding rule and the architecture.
 

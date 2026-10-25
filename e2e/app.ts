@@ -44,14 +44,7 @@ export async function launch(
 function showOnSpareWorkspace(app: ElectronApplication): void {
   const desktop = process.env.E2E_WORKSPACE ?? '1'
   try {
-    const ids = execFileSync('xdotool', [
-      'search',
-      '--all',
-      '--pid',
-      String(app.process().pid),
-      '--name',
-      'Agent Canvas'
-    ])
+    const ids = execFileSync('xdotool', ['search', '--all', '--pid', String(app.process().pid), '--name', 'Tilework'])
       .toString()
       .split('\n')
       .filter(Boolean)

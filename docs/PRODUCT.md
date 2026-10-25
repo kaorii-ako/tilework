@@ -1,6 +1,6 @@
-# Agent Canvas: product brief
+# Tilework: product brief
 
-Read this before touching the code. "Agent Canvas" is a working name.
+Read this before touching the code. The product is called **Tilework** (renamed from the working name "Agent Canvas", which is an OpenHands product). Internal ids keep the old name: `~/.config/agent-canvas`, `AGENT_CANVAS_TILE_ID`, `hooks/agent-canvas-hook.sh`, so existing installs and Nublet keep working.
 
 ## What it is
 

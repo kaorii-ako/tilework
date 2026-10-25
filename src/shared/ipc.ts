@@ -87,7 +87,7 @@ export interface CanvasApi {
   loadWorkspace(): Promise<Workspace | null>
   /** Call on every layout change; main debounces the disk write. */
   saveWorkspace(ws: Workspace): void
-  /** Whether ~/.claude/settings.json runs the Agent Canvas hook for every event it needs. */
+  /** Whether ~/.claude/settings.json runs the Tilework hook for every event it needs. */
   hookInstalled(): Promise<boolean>
   /** Merge the hook into ~/.claude/settings.json (backup in settings.json.bak first). */
   installHook(): Promise<HookInstallResult>

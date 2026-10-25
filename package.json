@@ -1,7 +1,7 @@
 {
   "name": "agent-canvas",
   "version": "0.1.0",
-  "description": "An infinite canvas of real terminal tiles for coding agents",
+  "description": "Run many coding agents side by side on an infinite canvas of real terminals. Built for Linux.",
   "main": "out/main/index.js",
   "scripts": {
     "dev": "electron-vite dev -- --ozone-platform-hint=auto",
@@ -20,7 +20,7 @@
     "type": "git",
     "url": "git+https://github.com/kaorii-ako/agent-canvas.git"
   },
-  "license": "UNLICENSED",
+  "license": "MIT",
   "type": "module",
   "bugs": {
     "url": "https://github.com/kaorii-ako/agent-canvas/issues"
@@ -62,5 +62,7 @@
         "to": "hooks"
       }
     ]
-  }
+  },
+  "productName": "Tilework",
+  "author": "Tawin Tangsukson"
 }

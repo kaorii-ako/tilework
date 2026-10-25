@@ -1,7 +1,27 @@
-# Agent Canvas
+# Tilework
 
-A Linux desktop app where every coding agent (Claude Code, Codex, Gemini CLI, or a plain shell) runs in a real terminal tile on a pan-and-zoom canvas.
-See at a glance which agents are working, idle, or waiting on you. Working name.
+**Run many coding agents side by side on an infinite canvas of real terminals. Built for Linux.**
+
+Claude Code, Codex, Gemini CLI or a plain shell: each one runs in a real terminal tile (a real PTY, not an imitation). Pan, zoom and arrange them however you like, see at a glance which agents are working, idle or waiting on you, and wire them together so one agent's result flows into the next.
+
+![Three Claude Code tiles linked Plan → Build → Review](docs/screenshot.png)
+
+- **Real terminals.** xterm.js on node-pty. Your agents, your shell, your dotfiles.
+- **Live status.** A dot per tile: working, idle, or needs you (from Claude Code hooks).
+- **Handoffs.** Drag a line from one tile to another. When the first agent finishes, **Send →** pastes its result plus your instruction into the next.
+- **Workflows.** Start Plan → Build → Review, Build ↔ Review, Research → Write or Quick fix in one click, or save your own canvas as a workflow.
+- **Remembers your layout** between launches.
+- **Nublet.** If you use the [Nublet](https://github.com/kaorii-ako/nublet) GNOME extension, your tiles show up in the top bar.
+
+## Install
+
+Download the AppImage from [Releases](https://github.com/kaorii-ako/agent-canvas/releases), then:
+
+```sh
+chmod +x Tilework-*.AppImage && ./Tilework-*.AppImage
+```
+
+Linux x64. You need the agent CLIs you want to run (`claude`, `codex`, `gemini`) on your `PATH`.
 
 ## Dev setup (Bazzite / Fedora Atomic)
 
@@ -36,3 +56,7 @@ On `Stop` the hook also forwards `transcript_path` from Claude Code's hook input
 | `npm test` | Unit tests (vitest) |
 | `npm run e2e` | Build, then drive the real app with Playwright: create, drag, zoom, link, handoff, restart. Needs a desktop session (runs under X11/XWayland); uses a temporary home, so your own workspace is never touched, and opens its windows on workspace 2. `REAL_CLAUDE=1 npm run e2e -- real-claude` also runs two real Claude Code tiles (needs the hook installed) |
 | `npm run typecheck` | `tsc --noEmit` over everything |
+
+## License
+
+[MIT](LICENSE)

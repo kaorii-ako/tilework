@@ -112,7 +112,7 @@ function createWindow(): void {
     width: 1400,
     height: 900,
     backgroundColor: '#0e1014',
-    title: 'Agent Canvas',
+    title: 'Tilework',
     // e2e starts hidden and shows the window itself on a spare workspace, so test runs don't
     // pop up over your work; it keeps rendering while not on screen.
     show: !process.env.AGENT_CANVAS_E2E,
