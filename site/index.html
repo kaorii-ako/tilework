@@ -1,0 +1,984 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Tilework</title>
+    <meta
+      name="description"
+      content="Run Claude Code, Codex, Gemini CLI and your shell side by side in real terminal tiles on one infinite canvas. Built for Linux. Free and MIT licensed."
+    />
+    <meta property="og:title" content="Tilework: every coding agent in view" />
+    <meta
+      property="og:description"
+      content="Real terminal tiles on an infinite canvas. Live status, handoffs between agents, one-click workflows. Built for Linux."
+    />
+    <meta property="og:image" content="img/handoff.webp" />
+    <link rel="icon" href="img/icon.svg" type="image/svg+xml" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --bg: #0d1015;
+        --surface: #151a21;
+        --tile: #181d25;
+        --line: #262d38;
+        --text: #e6e9ef;
+        --muted: #8b94a3;
+        --accent: #7aa2ff;
+        --ok: #5fd38d;
+        --warn: #f2b84b;
+        --ease: cubic-bezier(0.16, 1, 0.3, 1);
+      }
+      * {
+        box-sizing: border-box;
+        margin: 0;
+      }
+      html {
+        -webkit-text-size-adjust: 100%;
+      }
+      body {
+        background: var(--bg);
+        color: var(--text);
+        font:
+          400 16px/1.6 Geist,
+          system-ui,
+          sans-serif;
+        -webkit-font-smoothing: antialiased;
+      }
+      a {
+        color: inherit;
+      }
+      code,
+      .mono {
+        font-family: 'Geist Mono', ui-monospace, monospace;
+      }
+      .wrap {
+        max-width: 1180px;
+        margin: 0 auto;
+        padding: 0 16px;
+      }
+      @media (min-width: 768px) {
+        .wrap {
+          padding: 0 40px;
+        }
+      }
+
+      /* dotted canvas backdrop, fixed so it never repaints on scroll */
+      body::before {
+        content: '';
+        position: fixed;
+        inset: 0;
+        pointer-events: none;
+        background-image: radial-gradient(#ffffff0d 1px, transparent 1px);
+        background-size: 22px 22px;
+        z-index: -1;
+      }
+
+      header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 22px 0;
+      }
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-weight: 600;
+        letter-spacing: -0.01em;
+        text-decoration: none;
+      }
+      .brand img {
+        width: 28px;
+        height: 28px;
+      }
+      nav {
+        display: flex;
+        gap: 22px;
+        font-size: 14px;
+        color: var(--muted);
+      }
+      nav a {
+        text-decoration: none;
+        transition: color 0.2s;
+      }
+      nav a:hover {
+        color: var(--text);
+      }
+      @media (max-width: 600px) {
+        nav .opt {
+          display: none;
+        }
+      }
+
+      /* hero */
+      .hero {
+        display: grid;
+        gap: 48px;
+        padding: 48px 0 72px;
+        align-items: center;
+      }
+      @media (min-width: 960px) {
+        .hero {
+          grid-template-columns: 5fr 7fr;
+          padding: 72px 0 112px;
+        }
+      }
+      .eyebrow {
+        font-size: 13px;
+        color: var(--muted);
+        display: inline-flex;
+        gap: 8px;
+        align-items: center;
+        margin-bottom: 20px;
+      }
+      .eyebrow .dot {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: var(--ok);
+      }
+      h1 {
+        font-size: clamp(38px, 5.4vw, 60px);
+        line-height: 1.02;
+        letter-spacing: -0.035em;
+        font-weight: 600;
+      }
+      h1 span {
+        color: var(--muted);
+      }
+      .lede {
+        margin-top: 22px;
+        color: var(--muted);
+        max-width: 46ch;
+        font-size: 17px;
+      }
+      .ctas {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        margin-top: 32px;
+      }
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        padding: 12px 18px;
+        border-radius: 10px;
+        font-weight: 500;
+        font-size: 15px;
+        text-decoration: none;
+        border: 1px solid var(--line);
+        transition:
+          transform 0.25s var(--ease),
+          background 0.2s,
+          border-color 0.2s;
+      }
+      .btn:active {
+        transform: translateY(1px) scale(0.98);
+      }
+      .btn.primary {
+        background: var(--accent);
+        color: #0d1015;
+        border-color: transparent;
+      }
+      .btn.primary:hover {
+        background: #91b2ff;
+      }
+      .btn.ghost:hover {
+        border-color: #3a4352;
+        background: var(--surface);
+      }
+      .btn svg {
+        width: 17px;
+        height: 17px;
+      }
+      .stars {
+        font-family: 'Geist Mono', monospace;
+        font-size: 13px;
+        color: var(--muted);
+        padding-left: 10px;
+        border-left: 1px solid var(--line);
+      }
+      .fine {
+        margin-top: 16px;
+        font-size: 13px;
+        color: var(--muted);
+      }
+
+      /* live canvas demo */
+      .demo {
+        position: relative;
+        aspect-ratio: 16 / 10;
+        border-radius: 18px;
+        background: var(--surface);
+        border: 1px solid var(--line);
+        box-shadow:
+          inset 0 1px 0 #ffffff0a,
+          0 30px 60px -30px #00000099;
+        overflow: hidden;
+      }
+      .demo::before {
+        content: '';
+        position: absolute;
+        inset: 0;
+        background-image: radial-gradient(#ffffff12 1px, transparent 1px);
+        background-size: 18px 18px;
+      }
+      .t {
+        position: absolute;
+        width: 38%;
+        height: 40%;
+        background: var(--tile);
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        padding: 9px 11px;
+        font:
+          400 clamp(7px, 0.85vw, 10.5px)/1.55 'Geist Mono',
+          monospace;
+        color: #aab2bf;
+        box-shadow: 0 14px 30px -18px #000;
+      }
+      .t b {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font:
+          500 clamp(8px, 0.9vw, 11px) Geist,
+          sans-serif;
+        color: var(--text);
+        margin-bottom: 7px;
+      }
+      .t i {
+        width: 7px;
+        height: 7px;
+        border-radius: 50%;
+        background: var(--muted);
+      }
+      .t p {
+        white-space: nowrap;
+        overflow: hidden;
+        opacity: 0;
+      }
+      .t1 {
+        left: 5%;
+        top: 10%;
+      }
+      .t2 {
+        left: 57%;
+        top: 10%;
+      }
+      .t3 {
+        left: 31%;
+        top: 54%;
+      }
+      .t1 i {
+        background: var(--ok);
+      }
+      .t2 i {
+        animation: busy 9s infinite;
+      }
+      .t3 i {
+        animation: wait 9s infinite;
+      }
+      .t1 p {
+        animation: line 9s infinite;
+      }
+      .t2 p {
+        animation: line2 9s infinite;
+      }
+      .t3 p {
+        animation: line3 9s infinite;
+      }
+      .t p:nth-of-type(2) {
+        animation-delay: 0.25s;
+      }
+      .t p:nth-of-type(3) {
+        animation-delay: 0.5s;
+      }
+      .t p:nth-of-type(4) {
+        animation-delay: 0.75s;
+      }
+      .wire {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+      }
+      .wire path {
+        fill: none;
+        stroke: var(--accent);
+        stroke-width: 2;
+        stroke-dasharray: 400;
+        stroke-dashoffset: 400;
+        stroke-linecap: round;
+      }
+      .wire .w1 {
+        animation: draw 9s infinite;
+      }
+      .wire .w2 {
+        animation: draw2 9s infinite;
+      }
+      .send {
+        position: absolute;
+        left: 43.5%;
+        top: 25%;
+        transform: translate(-50%, -50%) scale(0.6);
+        opacity: 0;
+        background: var(--accent);
+        color: #0d1015;
+        font:
+          600 clamp(8px, 0.9vw, 11px) Geist,
+          sans-serif;
+        padding: 4px 10px;
+        border-radius: 99px;
+        animation: pop 9s infinite;
+      }
+      @keyframes line {
+        0%,
+        2% {
+          opacity: 0;
+          transform: translateY(3px);
+        }
+        6%,
+        100% {
+          opacity: 1;
+          transform: none;
+        }
+      }
+      @keyframes line2 {
+        0%,
+        34% {
+          opacity: 0;
+          transform: translateY(3px);
+        }
+        38%,
+        100% {
+          opacity: 1;
+          transform: none;
+        }
+      }
+      @keyframes line3 {
+        0%,
+        70% {
+          opacity: 0;
+          transform: translateY(3px);
+        }
+        74%,
+        100% {
+          opacity: 1;
+          transform: none;
+        }
+      }
+      @keyframes draw {
+        0%,
+        12% {
+          stroke-dashoffset: 400;
+        }
+        22%,
+        100% {
+          stroke-dashoffset: 0;
+        }
+      }
+      @keyframes draw2 {
+        0%,
+        50% {
+          stroke-dashoffset: 400;
+        }
+        60%,
+        100% {
+          stroke-dashoffset: 0;
+        }
+      }
+      @keyframes pop {
+        0%,
+        22% {
+          opacity: 0;
+          transform: translate(-50%, -50%) scale(0.6);
+        }
+        25% {
+          opacity: 1;
+          transform: translate(-50%, -50%) scale(1.08);
+        }
+        27%,
+        31% {
+          opacity: 1;
+          transform: translate(-50%, -50%) scale(1);
+        }
+        34%,
+        100% {
+          opacity: 0;
+          transform: translate(-50%, -50%) scale(0.9);
+        }
+      }
+      @keyframes busy {
+        0%,
+        33% {
+          background: var(--muted);
+        }
+        34%,
+        62% {
+          background: var(--warn);
+        }
+        63%,
+        100% {
+          background: var(--ok);
+        }
+      }
+      @keyframes wait {
+        0%,
+        69% {
+          background: var(--muted);
+        }
+        70%,
+        100% {
+          background: var(--warn);
+        }
+      }
+
+      /* sections */
+      section {
+        padding: 72px 0;
+        border-top: 1px solid var(--line);
+      }
+      @media (min-width: 768px) {
+        section {
+          padding: 104px 0;
+        }
+      }
+      .row {
+        display: grid;
+        gap: 40px;
+        align-items: center;
+      }
+      @media (min-width: 900px) {
+        .row {
+          grid-template-columns: 4fr 7fr;
+          gap: 64px;
+        }
+        .row.flip {
+          grid-template-columns: 7fr 4fr;
+        }
+        .row.flip .copy {
+          order: 2;
+        }
+      }
+      h2 {
+        font-size: clamp(26px, 3.2vw, 36px);
+        letter-spacing: -0.025em;
+        line-height: 1.1;
+        font-weight: 600;
+      }
+      .copy p {
+        margin-top: 16px;
+        color: var(--muted);
+        max-width: 52ch;
+      }
+      .copy ul {
+        margin-top: 20px;
+        padding: 0;
+        list-style: none;
+        display: grid;
+        gap: 10px;
+        color: var(--muted);
+        font-size: 15px;
+      }
+      .copy li {
+        display: flex;
+        gap: 10px;
+      }
+      .copy li::before {
+        content: '';
+        flex: none;
+        width: 6px;
+        height: 6px;
+        margin-top: 9px;
+        border-radius: 2px;
+        background: var(--accent);
+      }
+      .shot {
+        border-radius: 14px;
+        border: 1px solid var(--line);
+        overflow: hidden;
+        background: var(--surface);
+        box-shadow: 0 30px 60px -35px #000;
+      }
+      .shot img {
+        display: block;
+        width: 100%;
+        height: auto;
+      }
+
+      /* status legend */
+      .legend {
+        display: grid;
+        gap: 12px;
+        margin-top: 28px;
+      }
+      @media (min-width: 600px) {
+        .legend {
+          grid-template-columns: repeat(3, auto);
+          justify-content: start;
+          gap: 28px;
+        }
+      }
+      .legend span {
+        display: inline-flex;
+        align-items: center;
+        gap: 9px;
+        font-size: 14px;
+        color: var(--muted);
+      }
+      .legend i {
+        width: 9px;
+        height: 9px;
+        border-radius: 50%;
+      }
+      .legend .w i {
+        background: var(--warn);
+        animation: breathe 1.6s ease-in-out infinite;
+      }
+      .legend .d i {
+        background: var(--ok);
+      }
+      .legend .n i {
+        background: var(--warn);
+        box-shadow: 0 0 0 3px #f2b84b33;
+      }
+      @keyframes breathe {
+        50% {
+          opacity: 0.35;
+        }
+      }
+
+      /* Nublet pill mock */
+      .bar {
+        border-radius: 14px;
+        border: 1px solid var(--line);
+        background: #0a0c10;
+        padding: 18px;
+        display: grid;
+        place-items: center;
+        min-height: 220px;
+        position: relative;
+        overflow: hidden;
+      }
+      .bar::after {
+        content: '';
+        position: absolute;
+        left: 0;
+        right: 0;
+        top: 0;
+        height: 40px;
+        background: #12161c;
+        border-bottom: 1px solid var(--line);
+      }
+      .pill {
+        position: absolute;
+        top: 6px;
+        left: 50%;
+        transform: translateX(-50%);
+        z-index: 1;
+        background: #050608;
+        border: 1px solid #1d222b;
+        border-radius: 99px;
+        display: flex;
+        align-items: center;
+        gap: 9px;
+        padding: 5px 14px;
+        font-size: 13px;
+        white-space: nowrap;
+        animation: morph 6s var(--ease) infinite;
+      }
+      .pill i {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: var(--ok);
+      }
+      .pill em {
+        font-style: normal;
+        color: var(--muted);
+      }
+      .bar .caption {
+        position: relative;
+        z-index: 1;
+        color: var(--muted);
+        font-size: 14px;
+        text-align: center;
+        max-width: 34ch;
+        margin-top: 36px;
+      }
+      .bar .caption b {
+        color: var(--text);
+        font-weight: 500;
+      }
+      @keyframes morph {
+        0%,
+        100% {
+          padding: 5px 14px;
+        }
+        45%,
+        70% {
+          padding: 7px 22px;
+        }
+      }
+
+      /* install */
+      .install {
+        display: grid;
+        gap: 36px;
+      }
+      @media (min-width: 900px) {
+        .install {
+          grid-template-columns: 4fr 7fr;
+          gap: 64px;
+          align-items: start;
+        }
+      }
+      .term {
+        position: relative;
+        background: var(--surface);
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        padding: 20px 22px;
+        font:
+          400 14px/1.9 'Geist Mono',
+          monospace;
+        color: #c9d0db;
+        overflow-x: auto;
+      }
+      .term .c {
+        color: var(--muted);
+      }
+      .term .p {
+        color: var(--accent);
+        user-select: none;
+      }
+      .copybtn {
+        position: absolute;
+        top: 12px;
+        right: 12px;
+        font:
+          500 12px Geist,
+          sans-serif;
+        color: var(--muted);
+        background: var(--tile);
+        border: 1px solid var(--line);
+        border-radius: 7px;
+        padding: 5px 10px;
+        cursor: pointer;
+        transition:
+          color 0.2s,
+          transform 0.2s var(--ease);
+      }
+      .copybtn:hover {
+        color: var(--text);
+      }
+      .copybtn:active {
+        transform: scale(0.96);
+      }
+
+      footer {
+        border-top: 1px solid var(--line);
+        padding: 36px 0 48px;
+        color: var(--muted);
+        font-size: 14px;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 16px;
+        justify-content: space-between;
+      }
+      footer a {
+        text-decoration: none;
+      }
+      footer a:hover {
+        color: var(--text);
+      }
+
+      /* reveal on scroll */
+      .reveal {
+        opacity: 0;
+        transform: translateY(18px);
+        transition:
+          opacity 0.8s var(--ease),
+          transform 0.8s var(--ease);
+      }
+      .reveal.in {
+        opacity: 1;
+        transform: none;
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        *,
+        *::before,
+        *::after {
+          animation: none !important;
+          transition: none !important;
+        }
+        .t p,
+        .send {
+          opacity: 1;
+        }
+        .send {
+          transform: translate(-50%, -50%);
+        }
+        .wire path {
+          stroke-dashoffset: 0;
+        }
+        .reveal {
+          opacity: 1;
+          transform: none;
+        }
+      }
+      :focus-visible {
+        outline: 2px solid var(--accent);
+        outline-offset: 3px;
+        border-radius: 6px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <header>
+        <a class="brand" href="#"><img src="img/icon.svg" alt="" />Tilework</a>
+        <nav>
+          <a class="opt" href="#handoffs">Handoffs</a>
+          <a class="opt" href="#workflows">Workflows</a>
+          <a href="#install">Install</a>
+          <a href="https://github.com/kaorii-ako/agent-canvas">GitHub</a>
+        </nav>
+      </header>
+
+      <div class="hero">
+        <div>
+          <div class="eyebrow"><span class="dot"></span>Free, open source, built for Linux</div>
+          <h1>Every coding agent in view. <span>None of them in a tab.</span></h1>
+          <p class="lede">
+            Tilework puts Claude Code, Codex, Gemini CLI and your shell in real terminal tiles on one canvas. See who is
+            working, who is done and who is waiting on you, then pass one agent's result straight to the next.
+          </p>
+          <div class="ctas">
+            <a class="btn primary" href="https://github.com/kaorii-ako/agent-canvas/releases/latest">
+              <svg
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <path d="M12 4v11m0 0l-4.5-4.5M12 15l4.5-4.5M5 20h14" />
+              </svg>
+              Download AppImage
+            </a>
+            <a class="btn ghost" href="https://github.com/kaorii-ako/agent-canvas">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round">
+                <path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8-5.2-2.7-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z" />
+              </svg>
+              Star on GitHub<span class="stars" id="stars" hidden></span>
+            </a>
+          </div>
+          <p class="fine">Linux x64 · MIT license · no account, no telemetry</p>
+        </div>
+
+        <div
+          class="demo"
+          role="img"
+          aria-label="Three agent tiles on a canvas: a planner finishes, its plan is sent to a builder, then the builder's work is sent to a reviewer"
+        >
+          <svg class="wire" viewBox="0 0 100 62.5" preserveAspectRatio="none" aria-hidden="true">
+            <path class="w1" d="M43 15.5 C 49 15.5, 51 15.5, 57 15.5" vector-effect="non-scaling-stroke" />
+            <path class="w2" d="M76 35 C 76 46, 69 44, 69 54" vector-effect="non-scaling-stroke" />
+          </svg>
+          <div class="t t1">
+            <b><i></i>Planner</b>
+            <p>1. add reverse(s) in reverse.js</p>
+            <p>2. spread to keep emoji whole</p>
+            <p>3. one node:test file</p>
+            <p>Done. Plan is ready.</p>
+          </div>
+          <div class="t t2">
+            <b><i></i>Builder</b>
+            <p>Wrote reverse.js</p>
+            <p>Wrote reverse.test.js</p>
+            <p>npm test: 1 passing</p>
+            <p>Done.</p>
+          </div>
+          <div class="t t3">
+            <b><i></i>Reviewer</b>
+            <p>Handoff from Builder</p>
+            <p>Reading the diff against the plan</p>
+            <p>Allow edit to reverse.js?</p>
+            <p>Waiting on you</p>
+          </div>
+          <div class="send">Send →</div>
+        </div>
+      </div>
+    </div>
+
+    <section id="status">
+      <div class="wrap row">
+        <div class="copy reveal">
+          <h2>Know which agent needs you without checking every one.</h2>
+          <p>
+            Each tile is a real terminal backed by a real PTY, running your own CLIs with your own config. A small hook
+            tells Tilework what every Claude Code session is doing, so one dot per tile answers the only question that
+            matters.
+          </p>
+          <div class="legend">
+            <span class="w"><i></i>Working</span>
+            <span class="d"><i></i>Done</span>
+            <span class="n"><i></i>Needs you</span>
+          </div>
+        </div>
+        <div class="shot reveal">
+          <img
+            src="img/handoff.webp"
+            width="840"
+            height="245"
+            alt="Builder and Reviewer tiles on the Tilework canvas, linked, with a Send button on the link"
+            loading="lazy"
+          />
+        </div>
+      </div>
+    </section>
+
+    <section id="handoffs">
+      <div class="wrap row flip">
+        <div class="copy reveal">
+          <h2>Draw a line. Hand off the result.</h2>
+          <p>
+            Drag from one tile to another to link them. When the first agent finishes, press <strong>Send →</strong> and
+            its last answer lands in the next tile along with your instruction, like "Review this change for bugs".
+          </p>
+          <ul>
+            <li>Manual by default, so nothing starts without you</li>
+            <li>Switch a link to Auto-send for hands-off chains</li>
+            <li>A loop guard stops runaway back-and-forth</li>
+          </ul>
+        </div>
+        <div class="term reveal mono" aria-label="Example handoff text">
+          <span class="c">// pasted into the Reviewer tile</span><br />
+          Handoff from Builder:<br /><br />
+          I added reverse.js and reverse.test.js as planned,<br />
+          and npm test shows 1 test passing.<br /><br />
+          Review this change for bugs and missed edge cases.
+        </div>
+      </div>
+    </section>
+
+    <section id="workflows">
+      <div class="wrap row">
+        <div class="copy reveal">
+          <h2>A whole team in one click.</h2>
+          <p>
+            Start a ready-made layout: Plan → Build → Review, Build ↔ Review, Research → Write or Quick fix. Each tile
+            gets its model and each link its instruction. Arrange a canvas you like and save it as your own workflow.
+          </p>
+        </div>
+        <div class="shot reveal">
+          <img
+            src="img/workflows.webp"
+            width="760"
+            height="456"
+            alt="The Start a workflow dialog with four built-in workflows"
+            loading="lazy"
+          />
+        </div>
+      </div>
+    </section>
+
+    <section id="nublet">
+      <div class="wrap row flip">
+        <div class="copy reveal">
+          <h2>Your tiles, in the GNOME top bar.</h2>
+          <p>
+            With the <a href="https://github.com/kaorii-ako/nublet">Nublet</a> extension, the clock turns into a pill
+            that shows each agent by its tile name. Approve a permission prompt right there, or click to jump straight
+            to that tile on the canvas.
+          </p>
+        </div>
+        <div class="bar reveal" aria-hidden="true">
+          <div class="pill"><i></i>Builder <em>· done</em></div>
+          <p class="caption"><b>Click the pill</b> and Tilework zooms to the Builder tile at full size.</p>
+        </div>
+      </div>
+    </section>
+
+    <section id="install">
+      <div class="wrap install">
+        <div class="copy reveal">
+          <h2>Install in one minute.</h2>
+          <p>
+            Grab the AppImage, make it executable and run it. Have the agent CLIs you want (<code>claude</code>,
+            <code>codex</code>, <code>gemini</code>) on your PATH. On first launch Tilework offers to add its status
+            hook to Claude Code, with a backup of your settings.
+          </p>
+        </div>
+        <div class="term reveal">
+          <button class="copybtn" type="button" data-copy="chmod +x Tilework-*.AppImage && ./Tilework-*.AppImage">
+            Copy
+          </button>
+          <span class="c"># download from GitHub Releases, then</span><br />
+          <span class="p">$ </span>chmod +x Tilework-*.AppImage<br />
+          <span class="p">$ </span>./Tilework-*.AppImage
+        </div>
+      </div>
+    </section>
+
+    <div class="wrap">
+      <footer>
+        <span>Tilework · MIT · made by Tawin Tangsukson</span>
+        <span
+          ><a href="https://github.com/kaorii-ako/agent-canvas">Source</a> ·
+          <a href="https://github.com/kaorii-ako/agent-canvas/issues">Issues</a> ·
+          <a href="https://github.com/kaorii-ako/agent-canvas/releases">Releases</a></span
+        >
+      </footer>
+    </div>
+
+    <script>
+      // Reveal sections as they scroll in.
+      const io = new IntersectionObserver(
+        (entries) => {
+          for (const e of entries)
+            if (e.isIntersecting) {
+              e.target.classList.add('in')
+              io.unobserve(e.target)
+            }
+        },
+        { rootMargin: '0px 0px -10% 0px' }
+      )
+      document.querySelectorAll('.reveal').forEach((el) => io.observe(el))
+
+      // Copy the install command.
+      document.querySelectorAll('[data-copy]').forEach((b) =>
+        b.addEventListener('click', async () => {
+          try {
+            await navigator.clipboard.writeText(b.dataset.copy)
+            b.textContent = 'Copied'
+          } catch {
+            b.textContent = 'Select and copy'
+          }
+          setTimeout(() => (b.textContent = 'Copy'), 1600)
+        })
+      )
+
+      // Live star count; the button still works if GitHub is unreachable.
+      fetch('https://api.github.com/repos/kaorii-ako/agent-canvas')
+        .then((r) => (r.ok ? r.json() : Promise.reject()))
+        .then((d) => {
+          const s = document.getElementById('stars')
+          s.textContent = d.stargazers_count.toLocaleString()
+          s.hidden = false
+        })
+        .catch(() => {})
+    </script>
+  </body>
+</html>
