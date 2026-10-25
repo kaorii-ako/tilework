@@ -53,6 +53,7 @@ On `Stop` the hook also forwards `transcript_path` from Claude Code's hook input
 | `npm run dev` | Dev mode with hot reload (Wayland via `--ozone-platform-hint=auto`) |
 | `npm run build` | Build main, preload and renderer into `out/` |
 | `npm start` | Run the built app |
+| `npm run dist` | Build the AppImage into `dist/`. `PACKAGED=1 npx playwright test packaged` then checks it opens a real shell. Pushing a `v*` tag builds it in CI and attaches it to a draft GitHub release |
 | `npm test` | Unit tests (vitest) |
 | `npm run e2e` | Build, then drive the real app with Playwright: create, drag, zoom, link, handoff, restart. Needs a desktop session (runs under X11/XWayland); uses a temporary home, so your own workspace is never touched, and opens its windows on workspace 2. `REAL_CLAUDE=1 npm run e2e -- real-claude` also runs two real Claude Code tiles (needs the hook installed) |
 | `npm run typecheck` | `tsc --noEmit` over everything |

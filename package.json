@@ -14,7 +14,8 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "postinstall": "install-electron && electron-builder install-app-deps",
-    "spike:zoom": "electron spikes/zoom/run.mjs --ozone-platform-hint=auto"
+    "spike:zoom": "electron spikes/zoom/run.mjs --ozone-platform-hint=auto",
+    "dist": "electron-vite build && electron-builder --linux AppImage --publish never"
   },
   "repository": {
     "type": "git",
@@ -57,13 +58,34 @@
   },
   "private": true,
   "build": {
+    "appId": "dev.kaorii.tilework",
+    "productName": "Tilework",
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "out/**/*"
+    ],
     "extraResources": [
       {
         "from": "hooks",
         "to": "hooks"
       }
-    ]
+    ],
+    "linux": {
+      "target": [
+        "AppImage"
+      ],
+      "category": "Development",
+      "icon": "build/icon.png",
+      "executableName": "tilework",
+      "synopsis": "Coding agents side by side on an infinite canvas",
+      "syncDesktopName": true
+    },
+    "artifactName": "Tilework-${version}-${arch}.${ext}"
   },
   "productName": "Tilework",
-  "author": "Tawin Tangsukson"
+  "author": "Tawin Tangsukson",
+  "desktopName": "tilework.desktop"
 }
