@@ -32,6 +32,10 @@ describe('parseStatusLine', () => {
       state: 'working'
     })
   })
+  it('parses a focus request', () => {
+    expect(parseStatusLine('{"tile":"t","event":"Focus"}')).toEqual({ tileId: 't', focus: true })
+    expect(parseStatusLine('{"tile":"","event":"Focus"}')).toBeUndefined()
+  })
   it('rejects garbage', () => {
     expect(parseStatusLine('nope')).toBeUndefined()
     expect(parseStatusLine('{"tile":"a","event":"Nope"}')).toBeUndefined()

@@ -51,3 +51,7 @@ When a linked tile's Claude Code stops with a new result, a **Send →** button 
 - Status is not cleared if Claude Code is killed without a `SessionEnd`.
 - Claude Code buffers transcript writes, so main waits 1 s after `Stop` before reading the transcript.
 - The loop guard is global: any keystroke in any tile resets it, and parallel auto chains share the 5-per-10-minutes budget.
+
+## Focus requests (Nublet)
+
+Another local program can bring a tile into view by appending `{"tile":"<tileId>","event":"Focus"}` to the status file. If that tile is live, the app zooms to it at 100% and focuses it. The app doesn't raise its own window, because GNOME blocks focus stealing, so the caller raises it. The [Nublet](https://github.com/kaorii-ako/nublet) top-bar extension does this when you click a Claude session that runs in a tile.

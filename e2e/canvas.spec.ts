@@ -207,3 +207,23 @@ test('tiles that start zoomed out show a snapshot of their terminal', async () =
   await expect(tile(page, 'A').locator('.tile-snapshot')).toContainText('HELLO-SNAPSHOT', { timeout: 10_000 })
   await app.close()
 })
+
+test('a Focus line in the status file (from Nublet) zooms to that tile', async () => {
+  const home = tempHome()
+  seedWorkspace(home, {
+    version: 1,
+    viewport: { x: 0, y: 0, zoom: 0.5 },
+    tiles: [
+      { id: 'a', title: 'A', x: 40, y: 40, w: 500, h: 300 },
+      { id: 'b', title: 'B', x: 700, y: 40, w: 500, h: 300 }
+    ],
+    links: []
+  })
+  const { app, page } = await launch(home)
+  await expect(tiles(page)).toHaveCount(2)
+  await expect(tile(page, 'A').locator('.tile-snapshot')).toBeVisible()
+  appendFileSync(join(home, 'agent-canvas-status.jsonl'), '{"tile":"b","event":"Focus"}\n')
+  await expect.poll(() => zoomOf(page)).toBe(1)
+  await expect(tile(page, 'B')).toHaveClass(/focused/)
+  await app.close()
+})

@@ -14,6 +14,7 @@ export const IPC = {
   exit: 'pty:exit',
   status: 'agent:status',
   result: 'agent:result',
+  focusTile: 'agent:focus-tile',
   presets: 'launcher:presets',
   pickFolder: 'launcher:pick-folder',
   workspaceLoad: 'workspace:load',
@@ -68,6 +69,11 @@ export interface ResultEvent {
   text: string
 }
 
+/** Bring a tile into view at 100% (requested from outside, e.g. Nublet). */
+export interface FocusTileEvent {
+  tileId: string
+}
+
 /** Result of installing the Claude Code hook into ~/.claude/settings.json. */
 export type HookInstallResult = { ok: true } | { ok: false; error: string }
 
@@ -100,4 +106,5 @@ export interface CanvasApi {
   onExit(cb: (e: ExitEvent) => void): () => void
   onStatus(cb: (e: StatusEvent) => void): () => void
   onResult(cb: (e: ResultEvent) => void): () => void
+  onFocusTile(cb: (e: FocusTileEvent) => void): () => void
 }

@@ -139,8 +139,14 @@ app.whenReady().then(() => {
   // PTYs inherit this env var, so the hook writes to the file we tail.
   process.env.AGENT_CANVAS_STATUS_FILE = defaultStatusFile()
   const claudeDir = join(homedir(), '.claude')
-  watchStatusFile(process.env.AGENT_CANVAS_STATUS_FILE, ({ tileId, state, transcript }) => {
-    if (!ptys.has(tileId)) return
+  watchStatusFile(process.env.AGENT_CANVAS_STATUS_FILE, (e) => {
+    if (!ptys.has(e.tileId)) return
+    if ('focus' in e) {
+      // Nublet raises our window itself (GNOME won't let an app steal focus); we just show the tile.
+      win?.webContents.send(IPC.focusTile, { tileId: e.tileId })
+      return
+    }
+    const { tileId, state, transcript } = e
     win?.webContents.send(IPC.status, { tileId, state })
     // Only our own hook's Stop events for live tiles get here; readResult also confines the path to ~/.claude.
     // Claude Code buffers transcript writes, so the final message can land just after Stop fires.

@@ -19,9 +19,16 @@ export interface HookEvent {
   transcript?: string
 }
 
-export function parseStatusLine(line: string): HookEvent | undefined {
+/** Someone outside the app (Nublet's top-bar pill) asks to bring a tile into view. */
+export interface FocusRequest {
+  tileId: string
+  focus: true
+}
+
+export function parseStatusLine(line: string): HookEvent | FocusRequest | undefined {
   try {
     const { tile, event, transcript } = JSON.parse(line)
+    if (event === 'Focus') return typeof tile === 'string' && tile ? { tileId: tile, focus: true } : undefined
     const state = typeof event === 'string' ? stateForEvent(event) : undefined
     if (typeof tile !== 'string' || !tile || !state) return undefined
     // Stop also carries Claude Code's transcript_path, so main can read the result (KAO-33).

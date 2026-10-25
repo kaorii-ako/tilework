@@ -13,6 +13,11 @@ window.canvasApi.onStatus((e) => canvasStore.getState().setStatus(e.tileId, e.st
 // Handoffs (KAO-33): a tile's result marks its links pending; auto links deliver on their own.
 window.canvasApi.onResult((e) => canvasStore.getState().setResult(e.tileId, e.text))
 startHandoffs(canvasStore, ptyWrite)
+// Nublet (GNOME top bar) asks to show a tile: zoom to it at 100% and focus it.
+window.canvasApi.onFocusTile(({ tileId }) => {
+  const r = document.querySelector('.surface')?.getBoundingClientRect()
+  if (r) canvasStore.getState().zoomToTile(tileId, { w: r.width, h: r.height })
+})
 
 // No StrictMode: its double mount would spawn and kill a PTY on every start.
 createRoot(document.getElementById('root')!).render(<Canvas />)
