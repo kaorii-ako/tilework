@@ -4,7 +4,7 @@
 
 Claude Code, Codex, Gemini CLI or a plain shell: each one runs in a real terminal tile (a real PTY, not an imitation). Pan, zoom and arrange them however you like, see at a glance which agents are working, idle or waiting on you, and wire them together so one agent's result flows into the next.
 
-![Three Claude Code tiles linked Plan → Build → Review](docs/screenshot.png)
+![A real run: Planner, Builder and Reviewer Claude Code tiles handing off with Send →](docs/demo.gif)
 
 - **Real terminals.** xterm.js on node-pty. Your agents, your shell, your dotfiles.
 - **Live status.** A dot per tile: working, idle, or needs you (from Claude Code hooks), plus a desktop notification when an agent finishes or needs you while you're in another window.

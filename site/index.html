@@ -508,7 +508,8 @@
         background: var(--surface);
         box-shadow: 0 30px 60px -35px #000;
       }
-      .shot img {
+      .shot img,
+      .shot video {
         display: block;
         width: 100%;
         height: auto;
@@ -838,13 +839,17 @@
           </div>
         </div>
         <div class="shot reveal">
-          <img
-            src="img/handoff.webp"
-            width="840"
-            height="245"
-            alt="Builder and Reviewer tiles on the Tilework canvas, linked, with a Send button on the link"
-            loading="lazy"
-          />
+          <video
+            src="img/demo.mp4"
+            poster="img/demo-poster.webp"
+            width="1400"
+            height="330"
+            autoplay
+            muted
+            loop
+            playsinline
+            aria-label="A real run: Planner, Builder and Reviewer Claude Code tiles handing off with Send →"
+          ></video>
         </div>
       </div>
     </section>

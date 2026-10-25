@@ -34,6 +34,18 @@ export async function launch(
   await page.waitForLoadState('domcontentloaded')
   showOnSpareWorkspace(app)
   await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].showInactive())
+  // DEMO_FRAMES=<dir> saves a frame about twice a second, for the launch demo (KAO-51).
+  // (Playwright's recordVideo stops Electron's window from loading.)
+  const frames = process.env.DEMO_FRAMES
+  if (frames) {
+    mkdirSync(frames, { recursive: true })
+    void (async () => {
+      for (let i = 0; !page.isClosed(); i++) {
+        await page.screenshot({ path: join(frames, `${String(i).padStart(5, '0')}.png`) }).catch(() => {})
+        await new Promise((r) => setTimeout(r, 500))
+      }
+    })()
+  }
   return { app, page }
 }
 
