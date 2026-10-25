@@ -162,6 +162,11 @@ input:focus-visible {
   padding: 4px 0 0 12px;
 }
 /* Shown instead of xterm when zoomed; plain DOM text stays sharp under scale(). Same font as xterm. */
+/* One div per terminal row; keep empty rows a line tall. */
+.tile-snapshot > div {
+  min-height: 1.2em;
+}
+
 .tile-snapshot {
   position: absolute;
   inset: 0;

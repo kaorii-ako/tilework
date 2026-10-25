@@ -2,7 +2,9 @@ import { memo, useLayoutEffect, useRef, useState } from 'react'
 import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import { WebglAddon } from '@xterm/addon-webgl'
+import { SerializeAddon } from '@xterm/addon-serialize'
 import { canvasStore, type CanvasState } from './canvas/store'
+import { snapshot } from './snapshot'
 
 interface Props {
   tileId: string
@@ -11,7 +13,7 @@ interface Props {
   args?: string[]
   shell?: boolean
   cwd?: string
-  /** False when the canvas isn't at 100%: xterm is hidden (still running) and a text snapshot shows instead. */
+  /** False when the canvas isn't at 100%: xterm is hidden (still running) and a coloured snapshot shows instead. */
   live: boolean
 }
 
@@ -49,14 +51,6 @@ const FONT = {
   lineHeight: 1.2
 }
 
-/** The visible rows as plain text. */
-function snapshot(term: Terminal): string {
-  const b = term.buffer.active
-  const rows: string[] = []
-  for (let i = 0; i < term.rows; i++) rows.push(b.getLine(b.viewportY + i)?.translateToString(true) ?? '')
-  return rows.join('\n')
-}
-
 /**
  * One xterm.js terminal bound to one PTY. Memoized: moving or panning never re-renders it.
  * xterm can't be scaled (blurry, wrong hit-testing; see docs/zoom-spike.md), so it is only
@@ -65,6 +59,7 @@ function snapshot(term: Terminal): string {
 export const TerminalTile = memo(function TerminalTile({ tileId, command, args, shell, cwd, live }: Props) {
   const host = useRef<HTMLDivElement>(null)
   const termRef = useRef<Terminal | null>(null)
+  const serializerRef = useRef<SerializeAddon | null>(null)
   const fitRef = useRef<() => void>(() => {})
   const [snap, setSnap] = useState<string | null>(null)
   const argsKey = args?.join('\0')
@@ -76,6 +71,9 @@ export const TerminalTile = memo(function TerminalTile({ tileId, command, args, 
     const term = new Terminal({ ...FONT, cursorBlink: true, allowProposedApi: true, theme: THEME })
     const fit = new FitAddon()
     term.loadAddon(fit)
+    const serializer = new SerializeAddon()
+    term.loadAddon(serializer)
+    serializerRef.current = serializer
     term.open(host.current!)
     termRef.current = term
     fitRef.current = () => fit.fit()
@@ -128,18 +126,20 @@ export const TerminalTile = memo(function TerminalTile({ tileId, command, args, 
       offExit()
       api.kill({ tileId })
       termRef.current = null
+      serializerRef.current = null
       fitRef.current = () => {}
       term.dispose()
     }
     // argsKey stands in for args so a new array with the same items does not respawn.
   }, [tileId, command, argsKey, shell, cwd])
 
-  // Zoomed: hide xterm (it keeps parsing output) and refresh a text snapshot once a second.
+  // Zoomed: hide xterm (it keeps parsing output) and refresh a coloured snapshot once a second.
   // A layout effect, so the first snapshot is in place before the browser paints: otherwise
   // the tile flashes empty for a frame every time the zoom leaves 100%.
   useLayoutEffect(() => {
     const term = termRef.current
-    if (!term) return
+    const serializer = serializerRef.current
+    if (!term || !serializer) return
     if (live) {
       setSnap(null)
       fitRef.current() // the tile may have been resized while zoomed out
@@ -147,7 +147,7 @@ export const TerminalTile = memo(function TerminalTile({ tileId, command, args, 
       return
     }
     term.blur()
-    const grab = () => setSnap(snapshot(term))
+    const grab = () => setSnap(snapshot(term, serializer))
     grab()
     const timer = setInterval(grab, 1000)
     return () => clearInterval(timer)
@@ -162,9 +162,13 @@ export const TerminalTile = memo(function TerminalTile({ tileId, command, args, 
     <div className="tile-body">
       <div className="tile-term" ref={host} style={live ? undefined : { visibility: 'hidden' }} />
       {!live && (
-        <pre className="tile-snapshot" title="Click to zoom to 100%" onClick={zoomHere}>
-          {snap}
-        </pre>
+        <pre
+          className="tile-snapshot"
+          title="Click to zoom to 100%"
+          onClick={zoomHere}
+          // Built by @xterm/addon-serialize, which escapes the terminal text.
+          dangerouslySetInnerHTML={{ __html: snap ?? '' }}
+        />
       )}
     </div>
   )
