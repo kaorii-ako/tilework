@@ -107,8 +107,13 @@ test('a finished result shows Send → on the line, and clicking it pastes into 
   const send = page.getByRole('button', { name: 'Send handoff' })
   await expect(send).toBeVisible({ timeout: 10_000 })
   await send.click()
+  // The link has no instruction yet, so the first Send asks for one and keeps it.
+  const ask = page.getByRole('dialog', { name: 'What should B do with this?' })
+  await ask.getByRole('textbox').fill('Review this for bugs')
+  await ask.getByRole('button', { name: 'Send' }).click()
   await expect.poll(() => readFileSync(got, 'utf8'), { timeout: 5000 }).toContain('PLAN-42 is ready')
   expect(readFileSync(got, 'utf8')).toContain('Handoff from A:')
+  await expect(page.locator('.link-chip .link-label').first()).toHaveText('Review this for bugs')
   await expect(send).toHaveCount(0)
   await app.close()
 })
@@ -164,7 +169,7 @@ test('Install puts the hook in settings.json, keeps other hooks, and a hooked ti
   let { app, page } = await launch(home)
   const banner = page.getByRole('status').filter({ hasText: 'Claude Code hook' })
   await expect(banner).toBeVisible()
-  await expect(page.locator('.link-chip')).toHaveText(/Auto-send/)
+  await expect(page.locator('.link-chip .link-label')).toHaveText(/Auto-send/)
   await banner.getByRole('button', { name: 'Install' }).click()
   await expect(page.getByRole('status').filter({ hasText: 'Hook installed' })).toBeVisible()
 
@@ -185,5 +190,20 @@ test('Install puts the hook in settings.json, keeps other hooks, and a hooked ti
   ;({ app, page } = await launch(home))
   await expect(tiles(page)).toHaveCount(2)
   await expect(page.getByRole('status').filter({ hasText: 'Claude Code hook' })).toHaveCount(0)
+  await app.close()
+})
+
+test('tiles that start zoomed out show a snapshot of their terminal', async () => {
+  const home = tempHome()
+  seedWorkspace(home, {
+    version: 1,
+    viewport: { x: 0, y: 0, zoom: 0.5 },
+    tiles: [
+      { id: 'a', title: 'A', command: 'echo HELLO-SNAPSHOT; exec sleep 600', shell: true, x: 40, y: 40, w: 600, h: 400 }
+    ],
+    links: []
+  })
+  const { app, page } = await launch(home)
+  await expect(tile(page, 'A').locator('.tile-snapshot')).toContainText('HELLO-SNAPSHOT', { timeout: 10_000 })
   await app.close()
 })

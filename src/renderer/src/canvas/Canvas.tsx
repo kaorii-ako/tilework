@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useShallow } from 'zustand/react/shallow'
-import { NEW_TILE, canvasStore, placeNewTile, uniqueTitle, useCanvas, type CanvasState } from './store'
+import { NEW_TILE, TILE_GAP, canvasStore, placeNewTile, uniqueTitle, useCanvas, type CanvasState } from './store'
 import { createSpaceGesture } from './spaceGesture'
 import { perFrame } from './perFrame'
 import { TileFrame } from './TileFrame'
@@ -8,6 +8,9 @@ import { LinkLayer } from './LinkLayer'
 import { Toolbar } from './Toolbar'
 import { HookBanner } from './HookBanner'
 import { EmptyState, Launcher, type LaunchChoice } from '../Launcher'
+import { WorkflowPicker } from '../WorkflowPicker'
+import { PromptHost, askText } from '../Prompt'
+import { instantiateWorkflow, workflowFromCanvas, type Workflow } from '../../../shared/workflows'
 
 const isTerminal = (t: EventTarget | null) => t instanceof HTMLElement && t.classList.contains('xterm-helper-textarea')
 /** Form controls keep their own space key (typing, pressing a button). */
@@ -26,6 +29,7 @@ export function Canvas() {
   const world = useRef<HTMLDivElement>(null)
   const tileIds = useCanvas(useShallow((s) => s.tiles.map((t) => t.id)))
   const [launcherOpen, setLauncherOpen] = useState(false)
+  const [pickerOpen, setPickerOpen] = useState(false)
   const launcherWasOpen = useRef(false)
 
   // Closing the launcher hands keyboard focus back to the focused tile's terminal.
@@ -37,6 +41,20 @@ export function Canvas() {
       document.querySelector<HTMLElement>(`.tile[data-tile-id="${id}"] .xterm-helper-textarea`)?.focus()
     }
   }, [launcherOpen])
+
+  // File → Save canvas as workflow…
+  useEffect(
+    () =>
+      window.canvasApi.onMenuSaveWorkflow(async () => {
+        const { tiles, links } = canvasStore.getState()
+        if (!tiles.length) return
+        const name = await askText({ title: 'Save canvas as workflow', placeholder: 'Workflow name', ok: 'Save' })
+        if (!name) return
+        const list = await window.canvasApi.loadWorkflows()
+        await window.canvasApi.saveWorkflows([...list, workflowFromCanvas(name, tiles, links, crypto.randomUUID())])
+      }),
+    []
+  )
 
   useEffect(() => {
     const el = surface.current!
@@ -206,6 +224,20 @@ export function Canvas() {
     s.revealTile(id, size)
   }
 
+  /** Lay a workflow's tiles out left to right, after anything already on the canvas, then show it all. */
+  const startWorkflow = (wf: Workflow, cwd: string | undefined) => {
+    setPickerOpen(false)
+    const s = canvasStore.getState()
+    const origin = s.tiles.length
+      ? { x: Math.max(...s.tiles.map((t) => t.x + t.w)) + 2 * TILE_GAP, y: Math.min(...s.tiles.map((t) => t.y)) }
+      : { x: 0, y: 0 }
+    const { tiles, links } = instantiateWorkflow(wf, cwd, origin)
+    const named: typeof tiles = []
+    for (const t of tiles) named.push({ ...t, title: uniqueTitle(t.title, [...s.tiles, ...named]) })
+    s.addWorkflow(named, links)
+    s.zoomToFit(surfaceSize())
+  }
+
   return (
     <div className="app">
       <div className="surface" ref={surface}>
@@ -215,7 +247,9 @@ export function Canvas() {
             <TileFrame key={id} id={id} />
           ))}
         </div>
-        {tileIds.length === 0 && !launcherOpen && <EmptyState onLaunch={launch} />}
+        {tileIds.length === 0 && !launcherOpen && !pickerOpen && (
+          <EmptyState onLaunch={launch} onWorkflow={() => setPickerOpen(true)} />
+        )}
       </div>
       {tileIds.length > 0 && (
         <Toolbar
@@ -224,7 +258,18 @@ export function Canvas() {
         />
       )}
       <HookBanner />
-      {launcherOpen && <Launcher onLaunch={launch} onClose={() => setLauncherOpen(false)} />}
+      {launcherOpen && (
+        <Launcher
+          onLaunch={launch}
+          onWorkflow={() => {
+            setLauncherOpen(false)
+            setPickerOpen(true)
+          }}
+          onClose={() => setLauncherOpen(false)}
+        />
+      )}
+      {pickerOpen && <WorkflowPicker onStart={startWorkflow} onClose={() => setPickerOpen(false)} />}
+      <PromptHost />
     </div>
   )
 }

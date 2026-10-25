@@ -1,4 +1,4 @@
-import { memo, useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { memo, useLayoutEffect, useRef, useState } from 'react'
 import { Terminal } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import { WebglAddon } from '@xterm/addon-webgl'
@@ -69,7 +69,9 @@ export const TerminalTile = memo(function TerminalTile({ tileId, command, args, 
   const [snap, setSnap] = useState<string | null>(null)
   const argsKey = args?.join('\0')
 
-  useEffect(() => {
+  // A layout effect like the snapshot one below, and declared before it, so the terminal exists
+  // by the time a tile that starts zoomed out (a restored layout, a new workflow) takes its first snapshot.
+  useLayoutEffect(() => {
     const api = window.canvasApi
     const term = new Terminal({ ...FONT, cursorBlink: true, allowProposedApi: true, theme: THEME })
     const fit = new FitAddon()

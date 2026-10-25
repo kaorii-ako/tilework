@@ -50,10 +50,13 @@ function LinkHint() {
 
 const HELP: [string, string][] = [
   ['Start an agent', 'New tile, or Ctrl+Shift+N'],
+  ['Start a workflow', 'Several agents already linked: New tile → Workflow…'],
   ['Link two tiles', 'Drag from a tile’s right edge onto another tile'],
+  ['Say what to do', 'Click the label on a line: what the next agent should do with the result'],
   ['Hand off', 'When the first agent finishes, click Send → on the line'],
   ['Hand off by itself', 'Right-click the line, then Auto-send'],
   ['Remove a link', 'Click the line and press Delete, or right-click it'],
+  ['Save a workflow', 'File → Save canvas as workflow…'],
   ['Move around', 'Scroll or drag the background; hold Space to drag from anywhere'],
   ['Zoom', 'Ctrl+scroll or pinch; click a zoomed-out tile to work in it']
 ]

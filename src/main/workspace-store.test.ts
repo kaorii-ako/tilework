@@ -119,4 +119,23 @@ describe('WorkspaceStore', () => {
     expect(parsed?.links.map((x) => x.id)).toEqual(['ok'])
     expect(parsed?.tiles).toEqual(ws.tiles)
   })
+
+  it('keeps link instructions, and drops blank or oversized ones', () => {
+    const l = (id: string, from: string, to: string, instruction: unknown) => ({
+      id,
+      fromTileId: from,
+      toTileId: to,
+      mode: 'manual',
+      instruction
+    })
+    const parsed = parseWorkspace({
+      ...ws,
+      links: [l('k', 'a', 'b', 'Review this'), l('blank', 'a', 'c', '  '), l('big', 'b', 'c', 'x'.repeat(5000))]
+    })
+    expect(parsed?.links).toEqual([
+      { id: 'k', fromTileId: 'a', toTileId: 'b', mode: 'manual', instruction: 'Review this' },
+      { id: 'blank', fromTileId: 'a', toTileId: 'c', mode: 'manual' },
+      { id: 'big', fromTileId: 'b', toTileId: 'c', mode: 'manual' }
+    ])
+  })
 })

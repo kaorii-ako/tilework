@@ -52,6 +52,10 @@ export interface CanvasState {
   /** Link `from`'s output to `to`'s input. Ignores self-links, duplicates and unknown tiles. */
   addLink(from: string, to: string): void
   removeLink(id: string): void
+  /** Set (or clear, with blank text) what the link's target should do with a handoff. */
+  setLinkInstruction(id: string, instruction: string): void
+  /** Add a whole workflow's tiles and links at once (KAO-35). */
+  addWorkflow(tiles: Tile[], links: Link[]): void
   selectLink(id: string | null): void
   setLinkDraft(draft: CanvasState['linkDraft']): void
   setStatus(tileId: string, state: AgentState): void
@@ -316,6 +320,26 @@ export function createCanvasStore(initial: Partial<Pick<CanvasState, 'viewport' 
         links: s.links.filter((l) => l.id !== id),
         selectedLinkId: s.selectedLinkId === id ? null : s.selectedLinkId
       })),
+
+    setLinkInstruction: (id, instruction) =>
+      set((s) => ({
+        links: s.links.map((l) => {
+          if (l.id !== id) return l
+          const { instruction: _, ...rest } = l
+          return instruction.trim() ? { ...rest, instruction: instruction.trim() } : rest
+        })
+      })),
+
+    addWorkflow: (tiles, links) =>
+      set((s) => {
+        const all = [...s.tiles, ...tiles]
+        return {
+          tiles: all,
+          order: [...s.order, ...tiles.map((t) => t.id)],
+          links: [...s.links, ...linksBetween(links, all)],
+          focusedTileId: tiles[0]?.id ?? s.focusedTileId
+        }
+      }),
 
     selectLink: (id) => set((s) => (s.selectedLinkId === id ? s : { selectedLinkId: id })),
 

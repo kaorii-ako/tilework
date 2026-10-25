@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, Menu } from 'electron'
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { homedir } from 'node:os'
@@ -11,6 +11,7 @@ import { configPath, loadPresets } from './presets'
 import { readResult } from './transcript'
 import { WorkspaceStore, parseWorkspace } from './workspace-store'
 import { copyScript, installHook, isHookInstalled, readSettings } from './hook-install'
+import { loadWorkflows, saveWorkflows } from './workflows-store'
 
 let win: BrowserWindow | null = null
 
@@ -85,6 +86,27 @@ ipcMain.handle(IPC.hookInstall, () => {
   }
 })
 
+const workflowsPath = configPath('workflows.json')
+ipcMain.handle(IPC.workflowsLoad, () => loadWorkflows(workflowsPath))
+ipcMain.handle(IPC.workflowsSave, (_e, list: unknown) => saveWorkflows(workflowsPath, list))
+
+/** File → Save canvas as workflow… (the renderer asks for a name and saves). */
+const setMenu = () =>
+  Menu.setApplicationMenu(
+    Menu.buildFromTemplate([
+      {
+        label: 'File',
+        submenu: [
+          { label: 'Save canvas as workflow…', click: () => win?.webContents.send(IPC.menuSaveWorkflow) },
+          { type: 'separator' },
+          { role: 'quit' }
+        ]
+      },
+      { role: 'editMenu' },
+      { role: 'viewMenu' }
+    ])
+  )
+
 function createWindow(): void {
   win = new BrowserWindow({
     width: 1400,
@@ -111,6 +133,7 @@ function createWindow(): void {
 }
 
 app.whenReady().then(() => {
+  setMenu()
   // Keep an installed hook script in step with this version of the app.
   if (existsSync(hookDest)) copyScript(hookSrc(), hookDest)
   // PTYs inherit this env var, so the hook writes to the file we tail.

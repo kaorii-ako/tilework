@@ -49,22 +49,18 @@ function split(presets: Preset[]): [Preset[], Preset[]] {
 /** A big "start this agent" button. The first one takes focus, so Enter starts it. */
 function BigButtons({ presets, onPick }: { presets: Preset[]; onPick(p: Preset): void }) {
   return (
-    <div className="big-buttons">
+    <>
       {presets.map((p, i) => (
         <button type="button" key={p.id} className="big" autoFocus={i === 0} onClick={() => onPick(p)}>
           {p.name}
         </button>
       ))}
-    </div>
+    </>
   )
 }
 
-/**
- * The empty canvas: one centered prompt with the two big buttons and the folder they start in
- * (the last one used, or home), which "change" picks.
- */
-export function EmptyState({ onLaunch }: { onLaunch(c: LaunchChoice): void }) {
-  const [big] = split(usePresets())
+/** The last folder used (or home), shown as "in <folder> · change". */
+export function useFolder(): [string | undefined, () => Promise<void>] {
   const [folder, setFolder] = useState<string | undefined>(() => loadRecent()[0])
   const change = async () => {
     const p = await window.canvasApi.pickFolder()
@@ -72,22 +68,51 @@ export function EmptyState({ onLaunch }: { onLaunch(c: LaunchChoice): void }) {
     saveRecent(p)
     setFolder(p)
   }
+  return [folder, change]
+}
+
+export function FolderLine({ folder, onChange }: { folder?: string; onChange(): void }) {
+  return (
+    <p className="folder-line">
+      in <span title={folder}>{folder ? folderName(folder) : 'your home folder'}</span> ·{' '}
+      <button type="button" className="text-button" onClick={onChange}>
+        change
+      </button>
+    </p>
+  )
+}
+
+/**
+ * The empty canvas: one centered prompt with the big buttons (Claude Code, Shell, Start a
+ * workflow) and the folder they start in.
+ */
+export function EmptyState({ onLaunch, onWorkflow }: { onLaunch(c: LaunchChoice): void; onWorkflow(): void }) {
+  const [big] = split(usePresets())
+  const [folder, change] = useFolder()
   return (
     <div className="empty">
       <h1>Start an agent</h1>
-      <BigButtons presets={big} onPick={(preset) => onLaunch({ preset, cwd: folder })} />
-      <p className="empty-folder">
-        in <span title={folder}>{folder ? folderName(folder) : 'your home folder'}</span> ·{' '}
-        <button type="button" className="text-button" onClick={change}>
-          change
+      <div className="big-buttons">
+        <BigButtons presets={big} onPick={(preset) => onLaunch({ preset, cwd: folder })} />
+        <button type="button" className="big" onClick={onWorkflow}>
+          Start a workflow
         </button>
-      </p>
+      </div>
+      <FolderLine folder={folder} onChange={change} />
     </div>
   )
 }
 
 /** "New tile": the same big buttons, a folder, and everything else tucked under "More options". */
-export function Launcher({ onLaunch, onClose }: { onLaunch: (c: LaunchChoice) => void; onClose: () => void }) {
+export function Launcher({
+  onLaunch,
+  onWorkflow,
+  onClose
+}: {
+  onLaunch: (c: LaunchChoice) => void
+  onWorkflow: () => void
+  onClose: () => void
+}) {
   const [big, rest] = split(usePresets())
   const [recent] = useState(loadRecent)
   const [cwd, setCwd] = useState(() => recent[0] ?? '')
@@ -114,7 +139,12 @@ export function Launcher({ onLaunch, onClose }: { onLaunch: (c: LaunchChoice) =>
         onKeyDown={(e) => e.key === 'Escape' && onClose()}
       >
         <h2>New tile</h2>
-        <BigButtons presets={big} onPick={launch} />
+        <div className="big-buttons">
+          <BigButtons presets={big} onPick={launch} />
+        </div>
+        <button type="button" className="workflow-option" onClick={onWorkflow}>
+          Workflow…
+        </button>
         <div className="folder">
           <span className="folder-label">Folder</span>
           <input

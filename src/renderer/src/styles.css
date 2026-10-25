@@ -483,11 +483,11 @@ input:focus-visible {
   font-size: 22px;
   font-weight: 600;
 }
-.empty-folder {
+.folder-line {
   margin: -8px 0 0;
   color: var(--muted);
 }
-.empty-folder span {
+.folder-line span {
   color: var(--text);
 }
 .text-button {
@@ -615,4 +615,127 @@ input:focus-visible {
 }
 .row input {
   flex: 1;
+}
+
+/* Link instructions (KAO-35) */
+.link-chip text.link-label {
+  fill: var(--text);
+}
+.link-chip.empty text.link-label {
+  fill: var(--muted);
+  font-style: italic;
+}
+.link-chip text.link-badge,
+.link-chip text.link-note {
+  text-anchor: start;
+}
+.prompt {
+  width: min(480px, calc(100vw - 32px));
+}
+.prompt label {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.prompt-title {
+  color: var(--text);
+  font-weight: 600;
+}
+.launcher button.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-ink);
+  font-weight: 600;
+}
+.row.end {
+  justify-content: flex-end;
+}
+.row.spread {
+  justify-content: space-between;
+  align-items: center;
+}
+.workflow-option {
+  align-self: flex-start;
+  height: 32px;
+  padding: 0 12px;
+  background: var(--tile);
+  border: 1px solid var(--edge);
+  border-radius: 8px;
+  cursor: pointer;
+}
+.workflow-option:hover {
+  border-color: var(--accent);
+}
+
+/* Workflow picker */
+.picker {
+  width: min(760px, calc(100vw - 32px));
+}
+.cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 12px;
+  max-height: 60vh;
+  overflow: auto;
+}
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px;
+  text-align: left;
+  background: var(--tile);
+  border: 1px solid var(--edge);
+  border-radius: var(--radius);
+  cursor: pointer;
+}
+.card:hover {
+  border-color: color-mix(in srgb, var(--accent) 50%, var(--edge));
+}
+.card[aria-checked='true'] {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+.card-name {
+  font-weight: 600;
+}
+.card-desc {
+  color: var(--muted);
+  font-size: 12px;
+}
+.diagram {
+  width: 100%;
+  height: 64px;
+  margin-bottom: 4px;
+}
+.diagram rect {
+  fill: var(--raised);
+  stroke: var(--muted);
+  stroke-width: 8;
+}
+.diagram text {
+  fill: var(--text);
+  font:
+    600 92px system-ui,
+    sans-serif;
+  text-anchor: middle;
+}
+.diagram path {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 12;
+}
+.diagram marker path {
+  fill: var(--accent);
+  stroke: none;
+}
+.picker .folder-line {
+  margin: 0;
+}
+.launcher .text-button,
+.launcher .row .text-button {
+  height: auto;
+  padding: 0;
+  background: none;
+  border: 0;
 }

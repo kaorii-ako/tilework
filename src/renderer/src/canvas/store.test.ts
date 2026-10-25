@@ -194,6 +194,32 @@ describe('focus and z-order', () => {
   })
 })
 
+describe('workflows and instructions', () => {
+  it('addWorkflow adds tiles and links together and focuses the first tile', () => {
+    const s = createCanvasStore({ tiles: [tile('x')] })
+    s.getState().addWorkflow(
+      [tile('p'), tile('b')],
+      [
+        { id: 'pb', fromTileId: 'p', toTileId: 'b', mode: 'manual', instruction: 'Build it' },
+        { id: 'bad', fromTileId: 'p', toTileId: 'gone', mode: 'manual' }
+      ]
+    )
+    expect(s.getState().tiles.map((t) => t.id)).toEqual(['x', 'p', 'b'])
+    expect(s.getState().links.map((l) => l.id)).toEqual(['pb'])
+    expect(s.getState().focusedTileId).toBe('p')
+  })
+
+  it('setLinkInstruction trims, and blank clears it', () => {
+    const s = createCanvasStore({ tiles: [tile('a'), tile('b')] })
+    s.getState().addLink('a', 'b')
+    const id = s.getState().links[0].id
+    s.getState().setLinkInstruction(id, '  Review this  ')
+    expect(s.getState().links[0].instruction).toBe('Review this')
+    s.getState().setLinkInstruction(id, ' ')
+    expect('instruction' in s.getState().links[0]).toBe(false)
+  })
+})
+
 describe('links', () => {
   const three = () => createCanvasStore({ tiles: [tile('a'), tile('b'), tile('c')] })
   const pairs = (s: ReturnType<typeof three>) => s.getState().links.map((l) => `${l.fromTileId}>${l.toTileId}`)

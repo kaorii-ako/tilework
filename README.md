@@ -17,7 +17,9 @@ If node-pty fails to load after changing Node or Electron versions: `npx electro
 
 ## Using it
 
-Start an agent from the empty canvas, add a second with **+ New tile**, drag from the first tile's right edge onto the second to link them, and click **Send →** on the line when the first agent finishes. The **?** button in the bottom toolbar lists the rest.
+Start an agent from the empty canvas, add a second with **+ New tile**, drag from the first tile's right edge onto the second to link them, and click **Send →** on the line when the first agent finishes. The label on the line is the instruction that goes with the handoff ("Review this for bugs"); click it to change it.
+
+**Start a workflow** lays out a ready-made team in one go: Plan → Build → Review, Build ↔ Review, Research → Write, or Quick fix. Each tile runs `claude --model <x>` and every link starts as manual. **File → Save canvas as workflow…** saves your own to `~/.config/agent-canvas/workflows.json`. The **?** button in the bottom toolbar lists the rest.
 
 ## Claude Code hook
 

@@ -11,12 +11,17 @@ export type Write = (tileId: string, data: string, enter: boolean) => void
 const CONTROL = /[\u0000-\u0008\u000b-\u001f\u007f-\u009f]/g
 const clean = (s: string) => s.replace(/\r\n?/g, '\n').replace(CONTROL, '')
 
+/** Said at the end of a handoff whose link has no instruction (only reachable via Auto-send). */
+export const DEFAULT_INSTRUCTION = 'Continue from this.'
+
 /**
  * The handoff text as one bracketed paste, so a multi-line result arrives as a single paste
  * instead of running line by line. Newlines become CR, as a terminal paste sends them.
+ * It ends with the link's instruction: what the next agent should do with the result.
  */
-export function buildHandoff(fromTitle: string, result: string): string {
-  const body = `Handoff from ${clean(fromTitle)}:\n\n${clean(result)}\n\nContinue from this.`
+export function buildHandoff(fromTitle: string, result: string, instruction?: string): string {
+  const ask = clean(instruction ?? '').trim() || DEFAULT_INSTRUCTION
+  const body = `Handoff from ${clean(fromTitle)}:\n\n${clean(result)}\n\n${ask}`
   return `\x1b[200~${body.replace(/\n/g, '\r')}\x1b[201~`
 }
 
@@ -47,7 +52,7 @@ export function sendHandoff(s: CanvasState, linkId: string, write: Write, enter:
   const from = s.tiles.find((t) => t.id === link.fromTileId)
   const text = s.lastResult[link.fromTileId]
   if (!from || !text || !canReceive(s, link.toTileId)) return false
-  write(link.toTileId, buildHandoff(from.title, text), enter)
+  write(link.toTileId, buildHandoff(from.title, text, link.instruction), enter)
   return true
 }
 

@@ -23,6 +23,8 @@ export interface Link {
   fromTileId: string
   toTileId: string
   mode: 'manual' | 'auto'
+  /** What the target should do with the handoff, e.g. "Review this for bugs" (KAO-35). */
+  instruction?: string
 }
 
 /** A launcher entry. No command means the user's login shell. Stored in ~/.config/agent-canvas/presets.json. */

@@ -30,6 +30,13 @@ describe('buildHandoff', () => {
     )
   })
 
+  it('ends with the link instruction instead of the default', () => {
+    expect(buildHandoff('Planner', 'the plan', '  Implement this plan.\n')).toBe(
+      '\x1b[200~Handoff from Planner:\r\rthe plan\r\rImplement this plan.\x1b[201~'
+    )
+    expect(buildHandoff('A', 'r', '   ')).toContain('Continue from this.')
+  })
+
   it('strips control characters so the result cannot end the paste early', () => {
     const out = buildHandoff('A\x1b', 'x\x1b[201~rm -rf\x07\r\ny\tz\u009b')
     expect(out).toBe('\x1b[200~Handoff from A:\r\rx[201~rm -rf\ry\tz\r\rContinue from this.\x1b[201~')

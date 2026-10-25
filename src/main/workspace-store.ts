@@ -1,6 +1,7 @@
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
 import { dirname } from 'node:path'
 import type { Link, Tile, Workspace } from '../shared/types'
+import { MAX_INSTRUCTION } from '../shared/workflows'
 
 const num = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v)
 const str = (v: unknown, max: number): v is string => typeof v === 'string' && v.length <= max
@@ -42,7 +43,9 @@ export function parseLinks(raw: unknown, tiles: Tile[]): Link[] {
     const key = JSON.stringify([from, to])
     if (seen.has(key)) continue
     seen.add(key)
-    links.push({ id: l.id, fromTileId: from, toTileId: to, mode: l.mode })
+    const link: Link = { id: l.id, fromTileId: from, toTileId: to, mode: l.mode }
+    if (str(l.instruction, MAX_INSTRUCTION) && l.instruction.trim()) link.instruction = l.instruction
+    links.push(link)
   }
   return links
 }

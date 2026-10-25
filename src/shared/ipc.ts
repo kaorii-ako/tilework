@@ -3,6 +3,7 @@ import type { Workspace } from './types'
 
 /** Every IPC channel and its payload, defined once. Main, preload and renderer import from here. */
 import type { Preset } from './types'
+import type { Workflow } from './workflows'
 
 export const IPC = {
   spawn: 'pty:spawn',
@@ -18,7 +19,10 @@ export const IPC = {
   workspaceLoad: 'workspace:load',
   workspaceSave: 'workspace:save',
   hookStatus: 'hook:status',
-  hookInstall: 'hook:install'
+  hookInstall: 'hook:install',
+  workflowsLoad: 'workflows:load',
+  workflowsSave: 'workflows:save',
+  menuSaveWorkflow: 'menu:save-workflow'
 } as const
 
 // renderer -> main
@@ -87,6 +91,12 @@ export interface CanvasApi {
   hookInstalled(): Promise<boolean>
   /** Merge the hook into ~/.claude/settings.json (backup in settings.json.bak first). */
   installHook(): Promise<HookInstallResult>
+  /** Custom workflows from ~/.config/agent-canvas/workflows.json (built-ins live in shared/workflows.ts). */
+  loadWorkflows(): Promise<Workflow[]>
+  /** Replace the custom workflows; returns what main kept after validation. */
+  saveWorkflows(list: Workflow[]): Promise<Workflow[]>
+  /** File → "Save canvas as workflow…" was chosen. */
+  onMenuSaveWorkflow(cb: () => void): () => void
   onExit(cb: (e: ExitEvent) => void): () => void
   onStatus(cb: (e: StatusEvent) => void): () => void
   onResult(cb: (e: ResultEvent) => void): () => void

@@ -10,6 +10,7 @@ import type { AgentState } from '../../../shared/status'
 import type { Link, Tile } from '../../../shared/types'
 import { canvasStore, inPort, linkCurve, outPort, useCanvas } from './store'
 import { handoffBlocker, ptyWrite, sendHandoff } from './handoff'
+import { askText } from '../Prompt'
 
 const STATES: (AgentState | 'shell')[] = ['shell', 'working', 'idle', 'needs-input', 'exited']
 
@@ -48,14 +49,16 @@ function LinkLine({
   const { d, mid } = linkCurve(outPort(from), inPort(to))
   const canSend = pending && link.mode === 'manual' && !blocked
   const queued = pending && link.mode === 'auto'
-  // Quiet by default: a manual link has no chip until there is something to send.
-  const label = canSend ? 'Send →' : link.mode === 'auto' ? 'Auto-send' : paused ? 'paused' : null
-  const w = label ? Math.round(label.length * 7 + (canSend ? 28 : 18)) : 0
-  const h = canSend ? 26 : 18
-  // A→B and B→A share a midpoint when the tiles line up; stack their chips instead of overlapping.
-  const chipShift = twoWay ? ((from.x <= to.x ? -1 : 1) * (h / 2 + 3)) / zoom : 0
-  // "queued" / "loop paused" sit on the side away from the other chip, where tiles don't cover them.
-  const noteY = chipShift < 0 ? -h / 2 - 9 : h / 2 + 10
+  const auto = link.mode === 'auto'
+  // The chip always says what the next tile is asked to do; click it to edit.
+  const text = clip(link.instruction ?? '', 22)
+  const label = (auto ? 'Auto-send · ' : '') + (text || 'Add instruction')
+  const w = Math.round(label.length * 6.3 + 20)
+  // A→B and B→A share a midpoint when the tiles line up: one chip above the line, one below,
+  // each with its Send → on its outer side. Screen px; the group is scaled to screen size.
+  const dir = twoWay && from.x > to.x ? 1 : -1
+  const chipY = twoWay ? dir * 14 : 0
+  const sendY = chipY + dir * 28
   // The line and its chip both select the link and open its menu; the chip is the sure target when lines overlap.
   const pick = {
     onPointerDown: (e: ReactPointerEvent) => e.button === 0 && canvasStore.getState().selectLink(link.id),
@@ -65,6 +68,12 @@ function LinkLine({
       onMenu(e.clientX, e.clientY)
     }
   }
+  const press = (f: () => void) => ({
+    role: 'button',
+    tabIndex: 0,
+    onClick: f,
+    onKeyDown: (e: ReactKeyboardEvent) => (e.key === 'Enter' || e.key === ' ') && f()
+  })
   if (layer === 'line')
     return (
       <g className={selected ? 'link selected' : 'link'} data-state={state} data-link-id={link.id}>
@@ -72,43 +81,61 @@ function LinkLine({
         <path className="link-hit" d={d} {...pick} />
       </g>
     )
-  if (!label) return null
   return (
-    <g
-      data-state={state}
-      data-link-id={link.id}
-      className={canSend ? 'link-chip send' : 'link-chip'}
-      transform={`translate(${mid.x} ${mid.y + chipShift}) scale(${1 / zoom})`}
-      {...pick}
-      {...(canSend && {
-        role: 'button',
-        tabIndex: 0,
-        'aria-label': 'Send handoff',
-        onClick: () => manualSend(link.id),
-        onKeyDown: (e: ReactKeyboardEvent) => (e.key === 'Enter' || e.key === ' ') && manualSend(link.id)
-      })}
-    >
-      <title>
-        {canSend
-          ? 'Paste the latest result into the next tile (no Enter)'
-          : 'Auto-send: sends by itself when the source finishes. Right-click to change.'}
-      </title>
-      <rect x={-w / 2} y={-h / 2} width={w} height={h} rx={h / 2} />
-      <text className="link-label" dy="0.35em">
-        {label}
-      </text>
-      {queued && (
-        <text className="link-badge" y={noteY} dy="0.35em">
-          queued
+    <g data-state={state} data-link-id={link.id} transform={`translate(${mid.x} ${mid.y}) scale(${1 / zoom})`}>
+      <g
+        className={text ? 'link-chip' : 'link-chip empty'}
+        transform={`translate(0 ${chipY})`}
+        aria-label={`Instruction: ${link.instruction ?? 'none'}`}
+        {...pick}
+        {...press(() => editInstruction(link.id))}
+      >
+        <title>
+          {(link.instruction ? `“${link.instruction}”\n` : '') + 'Click to edit what the next tile should do'}
+        </title>
+        <rect x={-w / 2} y={-9} width={w} height={18} rx={9} />
+        <text className="link-label" dy="0.35em">
+          {label}
         </text>
-      )}
-      {paused && (
-        <text className="link-note" y={noteY} dy="0.35em">
-          loop paused
-        </text>
+        {(queued || paused) && (
+          <text className={queued ? 'link-badge' : 'link-note'} x={w / 2 + 8} dy="0.35em">
+            {queued ? 'queued' : 'loop paused'}
+          </text>
+        )}
+      </g>
+      {canSend && (
+        <g
+          className="link-chip send"
+          transform={`translate(0 ${sendY})`}
+          aria-label="Send handoff"
+          {...pick}
+          {...press(() => void manualSend(link.id))}
+        >
+          <title>Paste the latest result into the next tile, with the instruction (no Enter)</title>
+          <rect x={-40} y={-13} width={80} height={26} rx={13} />
+          <text className="link-label" dy="0.35em">
+            Send →
+          </text>
+        </g>
       )}
     </g>
   )
+}
+
+const clip = (s: string, n: number) => (s.length > n ? s.slice(0, n - 1).trimEnd() + '…' : s)
+const titleOf = (id: string) => canvasStore.getState().tiles.find((t) => t.id === id)?.title ?? 'the next tile'
+
+/** One text field for what the link's target should do with a handoff. */
+async function editInstruction(linkId: string) {
+  const link = canvasStore.getState().links.find((l) => l.id === linkId)
+  if (!link) return
+  const text = await askText({
+    title: `What should ${titleOf(link.toTileId)} do with ${titleOf(link.fromTileId)}’s result?`,
+    initial: link.instruction,
+    placeholder: 'e.g. Review this for bugs',
+    ok: 'Save'
+  })
+  if (text) canvasStore.getState().setLinkInstruction(linkId, text)
 }
 
 /** Handoff entries of a link's right-click menu. */
@@ -125,11 +152,21 @@ function LinkMenuItems({ linkId, close }: { linkId: string; close(): void }) {
         title={blocked ?? 'Paste the latest result into the next tile (no Enter)'}
         onClick={() => {
           if (blocked) return
-          manualSend(linkId)
           close()
+          void manualSend(linkId)
         }}
       >
         Send handoff
+      </button>
+      <button
+        type="button"
+        role="menuitem"
+        onClick={() => {
+          close()
+          void editInstruction(linkId)
+        }}
+      >
+        Edit instruction…
       </button>
       <button
         type="button"
@@ -147,8 +184,22 @@ function LinkMenuItems({ linkId, close }: { linkId: string; close(): void }) {
   )
 }
 
-/** Paste without Enter so Kao can read and edit it, then put the cursor in the target tile. */
-function manualSend(linkId: string) {
+/**
+ * Paste without Enter so Kao can read and edit it, then put the cursor in the target tile.
+ * A link without an instruction asks for one first and keeps the answer.
+ */
+async function manualSend(linkId: string) {
+  const link = canvasStore.getState().links.find((l) => l.id === linkId)
+  if (!link) return
+  if (!link.instruction) {
+    const text = await askText({
+      title: `What should ${titleOf(link.toTileId)} do with this?`,
+      placeholder: 'e.g. Review this for bugs',
+      ok: 'Send'
+    })
+    if (!text) return
+    canvasStore.getState().setLinkInstruction(linkId, text)
+  }
   const s = canvasStore.getState()
   if (!sendHandoff(s, linkId, ptyWrite, false)) return
   s.handoffSent(linkId)
