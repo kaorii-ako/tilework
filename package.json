@@ -1,5 +1,5 @@
 {
-  "name": "agent-canvas",
+  "name": "tilework",
   "version": "0.1.0",
   "description": "Run many coding agents side by side on an infinite canvas of real terminals. Built for Linux.",
   "main": "out/main/index.js",
@@ -19,14 +19,14 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/kaorii-ako/agent-canvas.git"
+    "url": "git+https://github.com/kaorii-ako/tilework.git"
   },
   "license": "MIT",
   "type": "module",
   "bugs": {
-    "url": "https://github.com/kaorii-ako/agent-canvas/issues"
+    "url": "https://github.com/kaorii-ako/tilework/issues"
   },
-  "homepage": "https://github.com/kaorii-ako/agent-canvas#readme",
+  "homepage": "https://github.com/kaorii-ako/tilework#readme",
   "dependencies": {
     "@xterm/addon-fit": "^0.11.0",
     "@xterm/addon-serialize": "^0.14.0",

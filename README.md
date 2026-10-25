@@ -15,7 +15,7 @@ Claude Code, Codex, Gemini CLI or a plain shell: each one runs in a real termina
 
 ## Install
 
-Download the AppImage from [Releases](https://github.com/kaorii-ako/agent-canvas/releases), then:
+Download the AppImage from [Releases](https://github.com/kaorii-ako/tilework/releases), then:
 
 ```sh
 chmod +x Tilework-*.AppImage && ./Tilework-*.AppImage
