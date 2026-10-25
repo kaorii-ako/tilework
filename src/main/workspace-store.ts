@@ -2,6 +2,7 @@ import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
 import { dirname } from 'node:path'
 import type { Link, Tile, Workspace } from '../shared/types'
 import { MAX_INSTRUCTION } from '../shared/workflows'
+import { SESSION_ID } from '../shared/status'
 
 const num = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v)
 const str = (v: unknown, max: number): v is string => typeof v === 'string' && v.length <= max
@@ -24,6 +25,8 @@ function parseTile(t: any): Tile | null {
   if (t.args !== undefined) tile.args = t.args
   if (t.shell !== undefined) tile.shell = t.shell
   if (t.presetId !== undefined) tile.presetId = t.presetId
+  // A bad session id only costs the resume, so drop it rather than the tile.
+  if (typeof t.sessionId === 'string' && SESSION_ID.test(t.sessionId)) tile.sessionId = t.sessionId
   return tile
 }
 

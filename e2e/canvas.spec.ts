@@ -185,6 +185,11 @@ test('Install puts the hook in settings.json, keeps other hooks, and a hooked ti
     .poll(() => (existsSync(got) ? readFileSync(got, 'utf8') : ''), { timeout: 10_000 })
     .toContain('REAL-HOOK-RESULT')
   expect(readFileSync(got, 'utf8')).toContain('Continue from this.') // Enter was pressed
+  // SessionStart's session id is saved on the tile, so a restart can resume it (KAO-48).
+  const wsPath = join(home, '.config', 'agent-canvas', 'workspace.json')
+  await expect
+    .poll(() => JSON.parse(readFileSync(wsPath, 'utf8')).tiles.find((t: { id: string }) => t.id === 'a').sessionId)
+    .toBe('e2e-session-1')
   await app.close()
 
   ;({ app, page } = await launch(home))
@@ -225,5 +230,40 @@ test('a Focus line in the status file (from Nublet) zooms to that tile', async (
   appendFileSync(join(home, 'agent-canvas-status.jsonl'), '{"tile":"b","event":"Focus"}\n')
   await expect.poll(() => zoomOf(page)).toBe(1)
   await expect(tile(page, 'B')).toHaveClass(/focused/)
+  await app.close()
+})
+
+test('a Claude tile resumes its saved session after a restart, if the transcript still exists', async () => {
+  const home = tempHome()
+  // A stand-in `claude` on PATH that prints the arguments it got.
+  const bin = join(home, 'bin')
+  mkdirSync(bin)
+  writeFileSync(join(bin, 'claude'), '#!/bin/sh\necho "CLAUDE-ARGS:[$*]"\nexec sleep 600\n', { mode: 0o755 })
+  mkdirSync(join(home, '.claude', 'projects', '-home-u-repo'), { recursive: true })
+  writeFileSync(join(home, '.claude', 'projects', '-home-u-repo', 'kept-1.jsonl'), '')
+  seedWorkspace(home, {
+    version: 1,
+    viewport: { x: 0, y: 0, zoom: 0.5 },
+    tiles: [
+      {
+        id: 'a',
+        title: 'A',
+        command: 'claude',
+        args: ['--model', 'haiku'],
+        sessionId: 'kept-1',
+        x: 40,
+        y: 40,
+        w: 600,
+        h: 300
+      },
+      { id: 'b', title: 'B', command: 'claude', sessionId: 'gone-2', x: 700, y: 40, w: 600, h: 300 }
+    ],
+    links: []
+  })
+  const { app, page } = await launch(home, { env: { PATH: `${bin}:${process.env.PATH}` } })
+  await expect(tile(page, 'A').locator('.tile-snapshot')).toContainText('CLAUDE-ARGS:[--model haiku --resume kept-1]', {
+    timeout: 10_000
+  })
+  await expect(tile(page, 'B').locator('.tile-snapshot')).toContainText('CLAUDE-ARGS:[]', { timeout: 10_000 })
   await app.close()
 })

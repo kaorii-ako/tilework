@@ -32,6 +32,18 @@ describe('parseStatusLine', () => {
       state: 'working'
     })
   })
+  it('keeps a valid session id on SessionStart only', () => {
+    expect(parseStatusLine('{"tile":"t","event":"SessionStart","session":"ab-12"}')).toEqual({
+      tileId: 't',
+      state: 'idle',
+      session: 'ab-12'
+    })
+    expect(parseStatusLine('{"tile":"t","event":"SessionStart","session":"../x"}')).toEqual({
+      tileId: 't',
+      state: 'idle'
+    })
+    expect(parseStatusLine('{"tile":"t","event":"Stop","session":"ab"}')).toEqual({ tileId: 't', state: 'idle' })
+  })
   it('parses a focus request', () => {
     expect(parseStatusLine('{"tile":"t","event":"Focus"}')).toEqual({ tileId: 't', focus: true })
     expect(parseStatusLine('{"tile":"","event":"Focus"}')).toBeUndefined()

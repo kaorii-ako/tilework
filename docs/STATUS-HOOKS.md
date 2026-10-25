@@ -45,6 +45,10 @@ If you installed the hook before KAO-33, nothing changes in `settings.json`: the
 
 When a linked tile's Claude Code stops with a new result, a **Send →** button appears on the line (manual links show nothing until then). Clicking it pastes `Handoff from <title>:` + the result + the link's instruction (the label on the line, e.g. "Review this for bugs"; the first Send asks for one if it's empty) into the target as one bracketed paste, without Enter. Right-click a link (or its chip) for **Send handoff** and **Auto-send**. Auto pastes and presses Enter on its own when the target is idle or a plain shell, and otherwise queues (the line's `Auto-send` chip shows `queued`) until it goes idle. An auto chain that sends more than 5 handoffs in 10 minutes without a keystroke is switched back to manual and marked `loop paused`. Nothing is ever pasted into a tile that has exited. Tiles without the hook (plain shells, codex, gemini) have no result, so Send is disabled with a tooltip.
 
+## Resuming sessions (KAO-48)
+
+On `SessionStart` the hook also forwards Claude Code's `session_id`. The app stores it on the tile (`sessionId` in workspace.json). On the next launch, a Claude tile starts with `--resume <id>` if that session's transcript is still somewhere under `~/.claude/projects/`. Otherwise it starts a fresh session. The id must match `[A-Za-z0-9-]{1,128}`, both in the hook and in main.
+
 ## Known limits
 
 - `Notification` also fires for Claude's idle reminder, which shows as `needs you` until the next event.

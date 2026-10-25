@@ -17,7 +17,11 @@ export interface HookEvent {
   tileId: string
   state: AgentState
   transcript?: string
+  /** Claude Code's session id, sent on SessionStart so the tile can resume it later (KAO-48). */
+  session?: string
 }
+
+export const SESSION_ID = /^[A-Za-z0-9-]{1,128}$/
 
 /** Someone outside the app (Nublet's top-bar pill) asks to bring a tile into view. */
 export interface FocusRequest {
@@ -27,10 +31,12 @@ export interface FocusRequest {
 
 export function parseStatusLine(line: string): HookEvent | FocusRequest | undefined {
   try {
-    const { tile, event, transcript } = JSON.parse(line)
+    const { tile, event, transcript, session } = JSON.parse(line)
     if (event === 'Focus') return typeof tile === 'string' && tile ? { tileId: tile, focus: true } : undefined
     const state = typeof event === 'string' ? stateForEvent(event) : undefined
     if (typeof tile !== 'string' || !tile || !state) return undefined
+    if (event === 'SessionStart' && typeof session === 'string' && SESSION_ID.test(session))
+      return { tileId: tile, state, session }
     // Stop also carries Claude Code's transcript_path, so main can read the result (KAO-33).
     return event === 'Stop' && typeof transcript === 'string'
       ? { tileId: tile, state, transcript }

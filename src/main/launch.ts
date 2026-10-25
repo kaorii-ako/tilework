@@ -1,6 +1,8 @@
 import { execFile } from 'node:child_process'
-import { statSync } from 'node:fs'
+import { existsSync, readdirSync, statSync } from 'node:fs'
+import { basename, join } from 'node:path'
 import type { SpawnRequest } from '../shared/ipc'
+import { SESSION_ID } from '../shared/status'
 
 /** POSIX single-quote; also valid in fish. */
 const q = (s: string) => `'${s.replaceAll("'", "'\\''")}'`
@@ -40,6 +42,33 @@ export function buildLaunch(
   return { ...loginShellLaunch(shell, command, req.args), probe: command }
 }
 
+/** True if some project under ~/.claude/projects has this session's transcript. */
+export function hasTranscript(projectsDir: string, sessionId: string): boolean {
+  try {
+    return readdirSync(projectsDir).some((d) => existsSync(join(projectsDir, d, `${sessionId}.jsonl`)))
+  } catch {
+    return false
+  }
+}
+
+/**
+ * Add `--resume <id>` to a Claude Code tile when its session can still be resumed (KAO-48).
+ * Anything else, or a session whose transcript is gone, starts as usual. `resume` never reaches the PTY.
+ */
+export function withResume(req: SpawnRequest, exists: (id: string) => boolean): SpawnRequest {
+  const { resume, ...rest } = req
+  if (!resume || !SESSION_ID.test(resume) || !rest.command) return rest
+  if (rest.shell) {
+    const first = rest.command.trim().split(/\s+/)[0]
+    return basename(first) === 'claude' && exists(resume)
+      ? { ...rest, command: `${rest.command} --resume ${resume}` }
+      : rest
+  }
+  return basename(rest.command) === 'claude' && exists(resume)
+    ? { ...rest, args: [...(rest.args ?? []), '--resume', resume] }
+    : rest
+}
+
 type Run = (file: string, args: string[]) => Promise<boolean>
 
 const run: Run = (file, args) =>
@@ -63,6 +92,7 @@ export function validateSpawn(req: SpawnRequest): string | null {
   )
     return 'bad command'
   if (req.shell !== undefined && typeof req.shell !== 'boolean') return 'bad shell'
+  if (req.resume !== undefined && (typeof req.resume !== 'string' || !SESSION_ID.test(req.resume))) return 'bad resume'
   if (
     req.args !== undefined &&
     (!Array.isArray(req.args) ||

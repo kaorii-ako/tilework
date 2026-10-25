@@ -9,7 +9,7 @@ const ws: Workspace = {
   version: 1,
   viewport: { x: -40, y: 12.5, zoom: 0.75 },
   tiles: [
-    { id: 'a', title: 'claude', command: 'claude', cwd: '/tmp', x: 0, y: 0, w: 600, h: 400 },
+    { id: 'a', title: 'claude', command: 'claude', cwd: '/tmp', sessionId: 'f3a1-77', x: 0, y: 0, w: 600, h: 400 },
     {
       id: 'c',
       title: 'codex',
@@ -137,5 +137,13 @@ describe('WorkspaceStore', () => {
       { id: 'blank', fromTileId: 'a', toTileId: 'c', mode: 'manual' },
       { id: 'big', fromTileId: 'b', toTileId: 'c', mode: 'manual' }
     ])
+  })
+})
+
+describe('sessionId', () => {
+  it('drops a malformed session id but keeps the tile', () => {
+    const parsed = parseWorkspace({ ...ws, tiles: [{ ...ws.tiles[0], sessionId: '../../etc' }] })
+    expect(parsed?.tiles[0].sessionId).toBeUndefined()
+    expect(parsed?.tiles[0].id).toBe('a')
   })
 })

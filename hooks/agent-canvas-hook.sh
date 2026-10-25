@@ -4,7 +4,12 @@
 # On Stop it also forwards transcript_path from the hook's JSON input, so the app can hand off the result (KAO-33).
 [[ -n "$AGENT_CANVAS_TILE_ID" && "$AGENT_CANVAS_TILE_ID" =~ ^[A-Za-z0-9._-]+$ && "$1" =~ ^[A-Za-z]+$ ]] || exit 0
 extra=''
-if [[ "$1" == Stop ]]; then
+if [[ "$1" == SessionStart ]]; then
+  # The session id lets the app resume this conversation after a restart (KAO-48).
+  IFS= read -r -d '' -t 2 input
+  re='"session_id"[[:space:]]*:[[:space:]]*"([A-Za-z0-9-]{1,128})"'
+  [[ "$input" =~ $re ]] && extra=",\"session\":\"${BASH_REMATCH[1]}\""
+elif [[ "$1" == Stop ]]; then
   IFS= read -r -d '' -t 2 input
   # Only plain paths: no quotes, backslashes or control characters, so it is safe to embed as a JSON string.
   re='"transcript_path"[[:space:]]*:[[:space:]]*"([^"\\[:cntrl:]]+)"'

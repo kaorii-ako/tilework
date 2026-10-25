@@ -17,13 +17,14 @@ export function tempHome(): string {
  */
 export async function launch(
   home: string,
-  { realClaude = false } = {}
+  { realClaude = false, env: extra = {} }: { realClaude?: boolean; env?: Record<string, string> } = {}
 ): Promise<{ app: ElectronApplication; page: Page }> {
   const env: Record<string, string> = {}
   for (const [k, v] of Object.entries(process.env))
     if (v !== undefined && (realClaude || !k.startsWith('CLAUDE'))) env[k] = v
   Object.assign(env, { XDG_CONFIG_HOME: join(home, '.config'), XDG_RUNTIME_DIR: home, AGENT_CANVAS_E2E: '1' })
   if (!realClaude) Object.assign(env, { HOME: home, SHELL: '/bin/sh' })
+  Object.assign(env, extra)
   // X11 (XWayland), so the window can be put on another workspace, and keep rendering there.
   const app = await _electron.launch({
     args: ['.', '--ozone-platform=x11', '--disable-backgrounding-occluded-windows', '--disable-renderer-backgrounding'],

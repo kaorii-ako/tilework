@@ -6,7 +6,16 @@ import { spawn } from 'node-pty'
 import { IPC, type InputRequest, type KillRequest, type ResizeRequest, type SpawnRequest } from '../shared/ipc'
 import { PtyManager } from './pty-manager'
 import { defaultStatusFile, watchStatusFile } from './status-watcher'
-import { badCwdMessage, buildLaunch, commandExists, isDirectory, missingCommandMessage, validateSpawn } from './launch'
+import {
+  badCwdMessage,
+  buildLaunch,
+  commandExists,
+  hasTranscript,
+  isDirectory,
+  missingCommandMessage,
+  validateSpawn,
+  withResume
+} from './launch'
 import { configPath, loadPresets } from './presets'
 import { readResult } from './transcript'
 import { WorkspaceStore, parseWorkspace } from './workspace-store'
@@ -35,7 +44,10 @@ ipcMain.handle(IPC.spawn, async (_e, req: SpawnRequest) => {
     win?.webContents.send(IPC.exit, { tileId: req.tileId, code: 127 })
   }
   if (req.cwd && !isDirectory(req.cwd)) return fail(badCwdMessage(req.cwd))
-  const launch = buildLaunch(shell, req)
+  const launch = buildLaunch(
+    shell,
+    withResume(req, (id) => hasTranscript(join(homedir(), '.claude', 'projects'), id))
+  )
   if (!launch) return ptys.spawn(req)
   if (launch.probe && !(await commandExists(shell, launch.probe))) return fail(missingCommandMessage(launch.probe))
   ptys.spawn({ ...req, command: launch.file, args: launch.args })
@@ -146,8 +158,8 @@ app.whenReady().then(() => {
       win?.webContents.send(IPC.focusTile, { tileId: e.tileId })
       return
     }
-    const { tileId, state, transcript } = e
-    win?.webContents.send(IPC.status, { tileId, state })
+    const { tileId, state, transcript, session } = e
+    win?.webContents.send(IPC.status, session ? { tileId, state, session } : { tileId, state })
     // Only our own hook's Stop events for live tiles get here; readResult also confines the path to ~/.claude.
     // Claude Code buffers transcript writes, so the final message can land just after Stop fires.
     // ponytail: fixed delay; poll until the file stops growing if 1s ever proves short.

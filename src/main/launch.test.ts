@@ -1,5 +1,8 @@
 import { describe, expect, it, vi } from 'vitest'
-import { buildLaunch, commandExists, loginShellLaunch, validateSpawn } from './launch'
+import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+import { buildLaunch, commandExists, hasTranscript, loginShellLaunch, validateSpawn, withResume } from './launch'
 
 describe('loginShellLaunch', () => {
   it('runs the command via the login shell and quotes arguments', () => {
@@ -61,5 +64,45 @@ describe('buildLaunch', () => {
       // `ll` is a plain word so it is probed; the rest are not.
       expect(probe).toBe(command === 'll' ? 'll' : null)
     }
+  })
+})
+
+describe('withResume', () => {
+  const base = { tileId: 't', cols: 80, rows: 24 }
+  const yes = () => true
+  it('adds --resume to claude tiles, plain or as a shell string', () => {
+    expect(withResume({ ...base, command: 'claude', args: ['--model', 'opus'], resume: 'ab-1' }, yes)).toEqual({
+      ...base,
+      command: 'claude',
+      args: ['--model', 'opus', '--resume', 'ab-1']
+    })
+    expect(withResume({ ...base, command: '/usr/bin/claude', resume: 'ab-1' }, yes).args).toEqual(['--resume', 'ab-1'])
+    expect(withResume({ ...base, command: 'claude --model haiku', shell: true, resume: 'ab-1' }, yes).command).toBe(
+      'claude --model haiku --resume ab-1'
+    )
+  })
+  it('starts fresh when the transcript is gone, the id is bad, or the tile is not claude', () => {
+    expect(withResume({ ...base, command: 'claude', resume: 'ab-1' }, () => false)).toEqual({
+      ...base,
+      command: 'claude'
+    })
+    expect(withResume({ ...base, command: 'claude', resume: 'a b' }, yes)).toEqual({ ...base, command: 'claude' })
+    expect(withResume({ ...base, command: 'codex', resume: 'ab-1' }, yes)).toEqual({ ...base, command: 'codex' })
+    expect(withResume({ ...base, resume: 'ab-1' }, yes)).toEqual(base)
+  })
+  it('rejects a bad resume id at the IPC boundary', () => {
+    expect(validateSpawn({ ...base, resume: '$(rm -rf ~)' })).toBe('bad resume')
+    expect(validateSpawn({ ...base, resume: 'ok-1' })).toBeNull()
+  })
+})
+
+describe('hasTranscript', () => {
+  it('finds a session in any project folder', () => {
+    const root = mkdtempSync(join(tmpdir(), 'projects-'))
+    mkdirSync(join(root, '-home-u-repo'))
+    writeFileSync(join(root, '-home-u-repo', 'ab-1.jsonl'), '')
+    expect(hasTranscript(root, 'ab-1')).toBe(true)
+    expect(hasTranscript(root, 'zz-9')).toBe(false)
+    expect(hasTranscript(join(root, 'missing'), 'ab-1')).toBe(false)
   })
 })

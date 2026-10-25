@@ -59,6 +59,8 @@ export interface CanvasState {
   selectLink(id: string | null): void
   setLinkDraft(draft: CanvasState['linkDraft']): void
   setStatus(tileId: string, state: AgentState): void
+  /** Remember the tile's Claude Code session so the next launch resumes it (KAO-48). */
+  setSession(tileId: string, sessionId: string): void
   /** Back to "shell", e.g. when the tile respawns. Also forgets its last result. */
   clearStatus(tileId: string): void
   /** A tile's agent finished with `text`; every link out of it gets a pending handoff. */
@@ -347,6 +349,13 @@ export function createCanvasStore(initial: Partial<Pick<CanvasState, 'viewport' 
 
     setStatus: (tileId, state) =>
       set((s) => (s.status[tileId] === state ? s : { status: { ...s.status, [tileId]: state } })),
+
+    setSession: (tileId, sessionId) =>
+      set((s) =>
+        s.tiles.some((t) => t.id === tileId && t.sessionId !== sessionId)
+          ? { tiles: s.tiles.map((t) => (t.id === tileId ? { ...t, sessionId } : t)) }
+          : s
+      ),
 
     clearStatus: (tileId) =>
       set((s) =>

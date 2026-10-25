@@ -9,7 +9,10 @@ import { ptyWrite, startHandoffs } from './canvas/handoff'
 // Restores the saved layout (or adds one starting shell tile) and keeps it saved.
 void startWorkspace(canvasStore)
 // One status listener for the whole app; tiles and link lines read it from the store.
-window.canvasApi.onStatus((e) => canvasStore.getState().setStatus(e.tileId, e.state))
+window.canvasApi.onStatus((e) => {
+  canvasStore.getState().setStatus(e.tileId, e.state)
+  if (e.session) canvasStore.getState().setSession(e.tileId, e.session)
+})
 // Handoffs (KAO-33): a tile's result marks its links pending; auto links deliver on their own.
 window.canvasApi.onResult((e) => canvasStore.getState().setResult(e.tileId, e.text))
 startHandoffs(canvasStore, ptyWrite)

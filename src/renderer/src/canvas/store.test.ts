@@ -304,6 +304,18 @@ describe('links', () => {
   })
 })
 
+describe('setSession', () => {
+  it('stores the session on its tile, and repeats are a no-op', () => {
+    const s = createCanvasStore({ tiles: [tile('a'), tile('b')] })
+    s.getState().setSession('a', 's-1')
+    const tiles = s.getState().tiles
+    expect(tiles.find((t) => t.id === 'a')?.sessionId).toBe('s-1')
+    s.getState().setSession('a', 's-1')
+    s.getState().setSession('missing', 's-2')
+    expect(s.getState().tiles).toBe(tiles)
+  })
+})
+
 describe('agent status', () => {
   it('sets and clears per-tile status, and closing a tile drops it', () => {
     const s = createCanvasStore({ tiles: [tile('a'), tile('b')] })

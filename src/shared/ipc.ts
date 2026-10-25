@@ -29,6 +29,8 @@ export const IPC = {
 // renderer -> main
 export interface SpawnRequest {
   tileId: string
+  /** Claude Code session to resume (KAO-48). Main only uses it for claude tiles whose transcript exists. */
+  resume?: string
   command?: string
   args?: string[]
   /** Run `command` as a shell string via the login shell (quotes, pipes, aliases). */
@@ -62,6 +64,7 @@ export interface ExitEvent {
 export interface StatusEvent {
   tileId: string
   state: AgentState
+  session?: string
 }
 /** The last assistant message of a Claude Code tile, read from its transcript on Stop (KAO-33). */
 export interface ResultEvent {

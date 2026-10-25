@@ -9,7 +9,7 @@ hook() { # $1 = event, stdin = hook input
 echo "fake claude: waiting for the hook"
 i=0
 until grep -q agent-canvas-hook "$settings" 2>/dev/null; do i=$((i + 1)); [ $i -gt 300 ] && exit 1; sleep 0.2; done
-echo '{}' | hook SessionStart
+echo '{"session_id":"e2e-session-1"}' | hook SessionStart
 echo '{}' | hook UserPromptSubmit
 sleep 1
 transcript="$HOME/.claude/projects/e2e/session.jsonl"
