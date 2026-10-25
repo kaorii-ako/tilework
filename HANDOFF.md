@@ -1,29 +1,29 @@
 # Handoff
 
-Updated 2026-10-24, after KAO-34 (UX pass, PR #11) was merged. There are no open PRs.
+Updated 2026-10-25, after the launch-prep pass. Nothing is merged or public yet.
 
 ## Where things stand
-Main has the MVP plus links (KAO-32), handoffs (KAO-33) and the UX pass (KAO-34):
-- **Main flow:** the empty canvas shows "Start an agent" (Claude Code / Shell, "in <folder> · change"). The bottom toolbar has + New tile, Zoom to fit and ?. Tiles show a status dot and a name. Drag from a tile's right edge onto another tile to link them. "Send →" appears on the line when the source finishes. Auto-send is in the line's right-click menu.
-- **Claude Code hook:** if `~/.claude/settings.json` lacks it, a banner offers Install. Install copies the script to `~/.config/agent-canvas/hooks/` (refreshed each launch), writes `settings.json.bak` and appends one entry per event (`src/main/hook-install.ts`). It is installed on Kao's machine. The backup sits next to `settings.json`.
-- **Spawn env:** tiles drop inherited `CLAUDECODE` / `CLAUDE_CODE_*` (`tileEnv` in `pty-manager.ts`).
-- **New tile placement:** new tiles never overlap; they go right of the focused tile. Pointer and wheel updates are coalesced per frame (`canvas/perFrame.ts`).
-- **Findings and screenshots:** `docs/ux-pass.md`.
-
-## Tests
-- `npm test`: 108 unit tests.
-- `npm run e2e`: 7 Playwright tests against the built app in a temporary home. Windows open hidden, then on workspace 2 (`E2E_WORKSPACE`, 0-based). Needs a desktop session (X11/XWayland) plus `xdotool` and `xprop`.
-- `REAL_CLAUDE=1 npm run e2e -- real-claude`: opt-in run with two real Claude Code tiles (haiku). Needs claude logged in and the hook installed. It passed on 2026-10-24.
+- **Name:** the product is now **Tilework**. "Agent Canvas" is an OpenHands product. Internal ids keep the old name: `~/.config/agent-canvas`, `AGENT_CANVAS_TILE_ID`, `hooks/agent-canvas-hook.sh`. The license is MIT.
+- **Open PRs**, all stacked on #15, so merge #15 first:
+  - #14 KAO-30: coloured zoom snapshots (based on main)
+  - #15 KAO-44: rename, LICENSE, public README
+  - #16 KAO-45: AppImage (`npm run dist`) and the release workflow for `v*` tags
+  - #17 KAO-46: Focus line in the status file, for Nublet
+  - #18 KAO-47: landing page in `site/` and the Pages workflow
+  - nublet#1: Nublet shows tile names and focuses the tile on click
+- **Launch kit** (Product Hunt copy, Show HN, the stars plan, research notes): `docs/LAUNCH.md`.
+- **New backlog from the research:** KAO-48 resume sessions after a restart, KAO-49 notifications, KAO-50 a worktree per tile, KAO-51 the demo GIF.
+- **Blocked:** KAO-29 (typescript-eslint still supports TypeScript only below 6.1). KAO-10 and KAO-20 are manual tasks for Tawin.
 
 ## Next step
-Use it for real work and note what gets in the way. Not run yet: KAO-27, KAO-29 (typescript-eslint once it supports TS 7) and KAO-30 (coloured zoom snapshots).
+Merge the PRs. Do KAO-51. Then follow "Before launch day" in `docs/LAUNCH.md`: repo public, Pages, tag `v0.1.0`.
 
-## Open decisions
-- The loop guard is global (any keystroke resets it, and parallel auto chains share the limit). Make it per chain?
-- A link can be dropped anywhere on the target tile, not only on the input dot.
+## Tests
+- `npm test`: 120 unit tests once #17 is in.
+- `npm run e2e`: 15 Playwright tests, including the Focus line test.
+- `PACKAGED=1 npx playwright test packaged`: after `npm run dist`, checks that the AppImage build opens a real shell.
 
 ## Watch out for
-- Claude Code sessions started before the hook was installed need a restart to report status.
-- Claude's idle reminder fires `Notification`, so an idle tile turns amber ("Needs you") after about a minute.
-- Auto-send pastes "Continue from this." and presses Enter, so the target agent may start real work in its folder.
-- Scripting the app: use `--ozone-platform=x11`; on Wayland, synthetic input stalls when the window isn't visible.
+- The release and Pages workflows haven't run yet. The first `v0.1.0` tag will test the release workflow. Pages needs the repo to be public.
+- The Nublet change is only tested outside GNOME Shell. Copy it into `~/.local/share/gnome-shell/extensions/nublet@kaorii-ako` and log in again to try it.
+- Scripting the app: use `--ozone-platform=x11`. On Wayland, synthetic input stalls when the window isn't visible.
