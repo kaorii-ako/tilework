@@ -2,6 +2,8 @@ import type { Link, Tile } from './types'
 
 /** Longest link instruction kept; a sentence or two, not a document. */
 export const MAX_INSTRUCTION = 2000
+/** Longest link condition kept: a word or short phrase to look for in the result (KAO-52). */
+export const MAX_WHEN = 200
 
 /** One tile of a workflow. Position and size are relative to the workflow's top-left. */
 export interface WorkflowTile {
@@ -14,6 +16,9 @@ export interface WorkflowTile {
   model?: string
   /** Start this tile in its own git worktree (KAO-50), so parallel builders don't share a checkout. */
   worktree?: boolean
+  /** See Tile.join and Tile.router (KAO-52). */
+  join?: true
+  router?: true
   x: number
   y: number
   w: number
@@ -25,6 +30,10 @@ export interface WorkflowLink {
   to: string
   instruction: string
   mode: Link['mode']
+  /** See Link.when, Link.otherwise and Link.split (KAO-52). */
+  when?: string
+  otherwise?: true
+  split?: true
 }
 
 /** A preset set of tiles and links (KAO-35). Built-ins ship with the app; custom ones live in workflows.json. */
@@ -154,8 +163,9 @@ function parseTile(t: any): WorkflowTile | null {
   if (t.shell !== undefined && typeof t.shell !== 'boolean') return null
   if (t.model !== undefined && !(str(t.model, 100) && /^[\w.:-]+$/.test(t.model))) return null
   if (t.worktree !== undefined && typeof t.worktree !== 'boolean') return null
+  if ((t.join !== undefined && t.join !== true) || (t.router !== undefined && t.router !== true)) return null
   const tile: WorkflowTile = { key: t.key, title: t.title, x: t.x, y: t.y, w: t.w, h: t.h }
-  for (const k of ['command', 'args', 'shell', 'model', 'worktree'] as const)
+  for (const k of ['command', 'args', 'shell', 'model', 'worktree', 'join', 'router'] as const)
     if (t[k] !== undefined) (tile as any)[k] = t[k]
   return tile
 }
@@ -177,7 +187,12 @@ export function parseWorkflow(w: any): Workflow | null {
     if (!l || !keys.has(l.from) || !keys.has(l.to) || l.from === l.to) return null
     if (!str(l.instruction, MAX_INSTRUCTION) || (l.mode !== 'manual' && l.mode !== 'auto')) return null
     if (links.some((o) => o.from === l.from && o.to === l.to)) return null
-    links.push({ from: l.from, to: l.to, instruction: l.instruction, mode: l.mode })
+    if (l.when !== undefined && !(str(l.when, MAX_WHEN) && l.when.trim())) return null
+    if ((l.otherwise !== undefined && l.otherwise !== true) || (l.split !== undefined && l.split !== true)) return null
+    if (l.when && l.otherwise) return null
+    const link: WorkflowLink = { from: l.from, to: l.to, instruction: l.instruction, mode: l.mode }
+    for (const k of ['when', 'otherwise', 'split'] as const) if (l[k] !== undefined) (link as any)[k] = l[k]
+    links.push(link)
   }
   return { id: w.id, name: w.name, description: w.description, tiles, links }
 }
@@ -210,6 +225,8 @@ export function instantiateWorkflow(
     if (t.command) tile.command = t.command
     if (args) tile.args = args
     if (t.shell) tile.shell = true
+    if (t.join) tile.join = true
+    if (t.router) tile.router = true
     if (cwd) tile.cwd = cwd
     return tile
   })
@@ -218,14 +235,19 @@ export function instantiateWorkflow(
     fromTileId: ids.get(l.from)!,
     toTileId: ids.get(l.to)!,
     mode: l.mode, // built-ins are all manual; a saved workflow keeps what was opted into
-    ...(l.instruction.trim() && { instruction: l.instruction })
+    ...(l.instruction.trim() && { instruction: l.instruction }),
+    ...(l.when && { when: l.when }),
+    ...(l.otherwise && { otherwise: true as const }),
+    ...(l.split && { split: true as const })
   }))
   const worktree = new Set(wf.tiles.filter((t) => t.worktree).map((t) => ids.get(t.key)!))
   return { tiles, links, worktree }
 }
 
 /** The current canvas as a custom workflow: tiles keep their commands and relative layout, links their instructions. */
-export function workflowFromCanvas(name: string, tiles: Tile[], links: Link[], id: string): Workflow {
+export function workflowFromCanvas(name: string, allTiles: Tile[], links: Link[], id: string): Workflow {
+  // Split workers are made at run time; a saved workflow re-creates them when it runs.
+  const tiles = allTiles.filter((t) => !t.workerOf)
   const x0 = Math.min(...tiles.map((t) => t.x))
   const y0 = Math.min(...tiles.map((t) => t.y))
   const keys = new Map(tiles.map((t, i) => [t.id, `t${i + 1}`]))
@@ -239,6 +261,8 @@ export function workflowFromCanvas(name: string, tiles: Tile[], links: Link[], i
       if (t.args) wt.args = t.args
       if (t.shell) wt.shell = true
       if (t.branch) wt.worktree = true
+      if (t.join) wt.join = true
+      if (t.router) wt.router = true
       return wt
     }),
     links: links
@@ -247,7 +271,10 @@ export function workflowFromCanvas(name: string, tiles: Tile[], links: Link[], i
         from: keys.get(l.fromTileId)!,
         to: keys.get(l.toTileId)!,
         instruction: l.instruction ?? '',
-        mode: l.mode
+        mode: l.mode,
+        ...(l.when && { when: l.when }),
+        ...(l.otherwise && { otherwise: true as const }),
+        ...(l.split && { split: true as const })
       }))
   }
 }

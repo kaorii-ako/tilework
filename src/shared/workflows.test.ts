@@ -134,3 +134,58 @@ describe('workflowFromCanvas', () => {
     expect(again.links[0]).toMatchObject({ mode: 'auto', instruction: 'Check it' })
   })
 })
+
+describe('dynamic workflow fields (KAO-52)', () => {
+  const wf = {
+    id: 'w',
+    name: 'Flow',
+    description: '',
+    tiles: [
+      { key: 'p', title: 'Planner', x: 0, y: 0, w: 10, h: 10, router: true },
+      { key: 'b', title: 'Builder', x: 20, y: 0, w: 10, h: 10 },
+      { key: 'r', title: 'Reviewer', x: 40, y: 0, w: 10, h: 10, join: true }
+    ],
+    links: [
+      { from: 'p', to: 'b', instruction: 'Build it.', mode: 'manual', split: true },
+      { from: 'b', to: 'r', instruction: 'Review.', mode: 'auto', when: 'DONE' },
+      { from: 'r', to: 'b', instruction: 'Fix.', mode: 'manual', otherwise: true }
+    ]
+  }
+
+  it('parse and instantiate keep the flags', () => {
+    const parsed = parseWorkflow(wf)!
+    expect(parsed).toMatchObject({ tiles: wf.tiles, links: wf.links })
+    const { tiles, links } = instantiateWorkflow(parsed, undefined, { x: 0, y: 0 }, ids())
+    expect(tiles.map((t) => [t.router, t.join])).toEqual([
+      [true, undefined],
+      [undefined, undefined],
+      [undefined, true]
+    ])
+    expect(links.map((l) => [l.split, l.when, l.otherwise])).toEqual([
+      [true, undefined, undefined],
+      [undefined, 'DONE', undefined],
+      [undefined, undefined, true]
+    ])
+  })
+
+  it('rejects a link that is both when and otherwise', () => {
+    const bad = { ...wf, links: [{ ...wf.links[1], otherwise: true }] }
+    expect(parseWorkflow(bad)).toBeNull()
+  })
+
+  it('saving the canvas leaves out split workers and their links', () => {
+    const tiles: Tile[] = [
+      { id: 'b', title: 'Builder', x: 0, y: 0, w: 10, h: 10 },
+      { id: 'b2', title: 'Builder 2', x: 0, y: 20, w: 10, h: 10, workerOf: 'b' },
+      { id: 'r', title: 'Reviewer', x: 20, y: 0, w: 10, h: 10, join: true }
+    ]
+    const links: Link[] = [
+      { id: '1', fromTileId: 'b', toTileId: 'r', mode: 'manual', when: 'DONE' },
+      { id: '2', fromTileId: 'b2', toTileId: 'r', mode: 'manual', when: 'DONE' }
+    ]
+    const saved = workflowFromCanvas('x', tiles, links, 'id')
+    expect(saved.tiles.map((t) => t.title)).toEqual(['Builder', 'Reviewer'])
+    expect(saved.tiles[1].join).toBe(true)
+    expect(saved.links).toEqual([{ from: 't1', to: 't2', instruction: '', mode: 'manual', when: 'DONE' }])
+  })
+})

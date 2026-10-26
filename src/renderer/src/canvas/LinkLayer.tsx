@@ -9,7 +9,7 @@ import { createPortal } from 'react-dom'
 import type { AgentState } from '../../../shared/status'
 import type { Link, Tile } from '../../../shared/types'
 import { canvasStore, inPort, linkCurve, outPort, useCanvas } from './store'
-import { handoffBlocker, ptyWrite, sendHandoff } from './handoff'
+import { deliver, handoffBlocker, ptyWrite } from './handoff'
 import { askText } from '../Prompt'
 
 const STATES: (AgentState | 'shell')[] = ['shell', 'working', 'idle', 'needs-input', 'exited']
@@ -201,8 +201,9 @@ async function manualSend(linkId: string) {
     canvasStore.getState().setLinkInstruction(linkId, text)
   }
   const s = canvasStore.getState()
-  if (!sendHandoff(s, linkId, ptyWrite, false)) return
-  s.handoffSent(linkId)
+  const sent = deliver(s, linkId, ptyWrite, false)
+  if (!sent.length) return
+  for (const id of sent) s.handoffSent(id)
   const to = s.links.find((l) => l.id === linkId)?.toTileId
   if (to) s.focusTile(to)
 }

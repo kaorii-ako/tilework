@@ -329,3 +329,47 @@ describe('agent status', () => {
     expect(s.getState().status).toEqual({})
   })
 })
+
+describe('dynamic workflow settings (KAO-52)', () => {
+  it('when and otherwise exclude each other; blank clears when', () => {
+    const s = createCanvasStore({ tiles: [tile('a'), tile('b')] })
+    s.getState().addLink('a', 'b')
+    const id = s.getState().links[0].id
+    s.getState().setLinkWhen(id, '  APPROVED ')
+    expect(s.getState().links[0]).toMatchObject({ when: 'APPROVED' })
+    s.getState().setLinkOtherwise(id, true)
+    expect(s.getState().links[0].when).toBeUndefined()
+    expect(s.getState().links[0].otherwise).toBe(true)
+    s.getState().setLinkWhen(id, 'x')
+    s.getState().setLinkWhen(id, '  ')
+    expect(s.getState().links[0]).toEqual({ id, fromTileId: 'a', toTileId: 'b', mode: 'manual' })
+  })
+
+  it('toggles split, join and router', () => {
+    const s = createCanvasStore({ tiles: [tile('a'), tile('b')] })
+    s.getState().addLink('a', 'b')
+    const id = s.getState().links[0].id
+    s.getState().setLinkSplit(id, true)
+    s.getState().setTileFlag('b', 'join', true)
+    s.getState().setTileFlag('a', 'router', true)
+    expect(s.getState().links[0].split).toBe(true)
+    expect(s.getState().tiles.map((t) => [t.router, t.join])).toEqual([
+      [true, undefined],
+      [undefined, true]
+    ])
+    s.getState().setLinkSplit(id, false)
+    s.getState().setTileFlag('b', 'join', false)
+    expect(s.getState().links[0].split).toBeUndefined()
+    expect('join' in s.getState().tiles[1]).toBe(false)
+  })
+
+  it('a removed tile drops its queued input and starting mark; a status ends starting', () => {
+    const s = createCanvasStore({ tiles: [tile('a'), tile('b')] })
+    s.getState().markStarting(['a', 'b'], 1)
+    s.getState().queueInput('a', 'hi', true)
+    s.getState().removeTile('a')
+    s.getState().setStatus('b', 'idle')
+    expect(s.getState().queued).toEqual({})
+    expect(s.getState().starting).toEqual({})
+  })
+})

@@ -1,7 +1,7 @@
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs'
 import { dirname } from 'node:path'
 import type { Link, Tile, Workspace } from '../shared/types'
-import { MAX_INSTRUCTION } from '../shared/workflows'
+import { MAX_INSTRUCTION, MAX_WHEN } from '../shared/workflows'
 import { SESSION_ID } from '../shared/status'
 
 const num = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v)
@@ -28,6 +28,10 @@ function parseTile(t: any): Tile | null {
   // A bad session id only costs the resume, so drop it rather than the tile.
   if (typeof t.sessionId === 'string' && SESSION_ID.test(t.sessionId)) tile.sessionId = t.sessionId
   if (str(t.branch, 200) && t.branch) tile.branch = t.branch
+  // KAO-52 flow flags: bad values are dropped, not fatal.
+  if (t.join === true) tile.join = true
+  if (t.router === true) tile.router = true
+  if (str(t.workerOf, 199) && t.workerOf) tile.workerOf = t.workerOf
   return tile
 }
 
@@ -49,6 +53,9 @@ export function parseLinks(raw: unknown, tiles: Tile[]): Link[] {
     seen.add(key)
     const link: Link = { id: l.id, fromTileId: from, toTileId: to, mode: l.mode }
     if (str(l.instruction, MAX_INSTRUCTION) && l.instruction.trim()) link.instruction = l.instruction
+    if (str(l.when, MAX_WHEN) && l.when.trim()) link.when = l.when
+    else if (l.otherwise === true) link.otherwise = true
+    if (l.split === true) link.split = true
     links.push(link)
   }
   return links

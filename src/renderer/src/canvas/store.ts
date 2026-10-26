@@ -1,6 +1,7 @@
 import { createStore, useStore } from 'zustand'
 import type { AgentState } from '../../../shared/status'
 import type { Link, Tile, Viewport } from '../../../shared/types'
+import { firingLinks } from './flow'
 
 export type { Viewport }
 
@@ -29,6 +30,12 @@ export interface CanvasState {
   loopPaused: Record<string, true>
   /** Auto handoffs since the last user keystroke, for the loop guard. */
   autoSends: { linkId: string; at: number }[]
+  /** Text waiting for a tile to be ready: a split worker's task, or a workflow's goal (KAO-52). */
+  queued: Record<string, { text: string; enter: boolean }>
+  /** Tiles just spawned, by start time: not ready for input until their first status or STARTUP_MS. */
+  starting: Record<string, number>
+  /** Tiles that started working and haven't delivered a result yet (Stop's idle lands before the result). */
+  resultDue: Record<string, true>
 
   panBy(dx: number, dy: number): void
   /** Multiply zoom by `factor`, keeping the canvas point under `at` (screen px) still. */
@@ -73,6 +80,25 @@ export interface CanvasState {
   pauseLoop(linkIds: string[]): void
   /** The user typed into a terminal: the loop guard starts over. */
   userTyped(): void
+  /** Only fire when the source's result contains `text`; blank clears it. Clears `otherwise` (KAO-52). */
+  setLinkWhen(linkId: string, text: string): void
+  /** Fire only when no sibling condition matched. Clears `when`. */
+  setLinkOtherwise(linkId: string, on: boolean): void
+  /** Split the result's task list into parallel workers. */
+  setLinkSplit(linkId: string, on: boolean): void
+  /** Turn a tile's join (wait for all inputs) or router flag on or off. */
+  setTileFlag(tileId: string, flag: 'join' | 'router', on: boolean): void
+  /**
+   * `n` tiles to run a split on: the template first, then its workers, reusing existing ones
+   * and cloning the rest (below it, same command and folder, its outgoing links copied).
+   * New workers are marked starting at `at`. Returns their ids in order.
+   */
+  spawnWorkers(templateId: string, n: number, at: number): string[]
+  /** Deliver `text` to the tile once it's ready (see startHandoffs). */
+  queueInput(tileId: string, text: string, enter: boolean): void
+  inputDelivered(tileId: string): void
+  /** Hold input for freshly spawned tiles until they report in (see STARTUP_MS). */
+  markStarting(tileIds: string[], at: number): void
 }
 
 export const MIN_TILE = { w: 320, h: 200 }
@@ -80,6 +106,8 @@ export const ZOOM = { min: 0.2, max: 1.5 }
 export const NEW_TILE = { w: 600, h: 420 }
 /** Space kept between tiles when placing a new one. */
 export const TILE_GAP = 96
+/** Longest a freshly spawned tile is held back from input when it never reports a status. */
+export const STARTUP_MS = 15_000
 
 export function screenToCanvas(v: Viewport, p: Point): Point {
   return { x: (p.x - v.x) / v.zoom, y: (p.y - v.y) / v.zoom }
@@ -221,6 +249,9 @@ export function createCanvasStore(initial: Partial<Pick<CanvasState, 'viewport' 
     handoffPending: {},
     loopPaused: {},
     autoSends: [],
+    queued: {},
+    starting: {},
+    resultDue: {},
 
     panBy: (dx, dy) => set((s) => ({ viewport: { ...s.viewport, x: s.viewport.x + dx, y: s.viewport.y + dy } })),
 
@@ -273,6 +304,9 @@ export function createCanvasStore(initial: Partial<Pick<CanvasState, 'viewport' 
           order,
           links,
           status: withoutKey(s.status, id),
+          queued: withoutKey(s.queued, id),
+          starting: withoutKey(s.starting, id),
+          resultDue: withoutKey(s.resultDue, id),
           selectedLinkId: links.some((l) => l.id === s.selectedLinkId) ? s.selectedLinkId : null,
           focusedTileId: s.focusedTileId === id ? (order.at(-1) ?? null) : s.focusedTileId
         }
@@ -348,7 +382,16 @@ export function createCanvasStore(initial: Partial<Pick<CanvasState, 'viewport' 
     setLinkDraft: (linkDraft) => set({ linkDraft }),
 
     setStatus: (tileId, state) =>
-      set((s) => (s.status[tileId] === state ? s : { status: { ...s.status, [tileId]: state } })),
+      set((s) => {
+        if (s.status[tileId] === state && !(tileId in s.starting)) return s
+        const resultDue =
+          state === 'working'
+            ? { ...s.resultDue, [tileId]: true as const }
+            : state === 'exited'
+              ? withoutKey(s.resultDue, tileId)
+              : s.resultDue
+        return { status: { ...s.status, [tileId]: state }, starting: withoutKey(s.starting, tileId), resultDue }
+      }),
 
     setSession: (tileId, sessionId) =>
       set((s) =>
@@ -359,16 +402,24 @@ export function createCanvasStore(initial: Partial<Pick<CanvasState, 'viewport' 
 
     clearStatus: (tileId) =>
       set((s) =>
-        tileId in s.status || tileId in s.lastResult
-          ? { status: withoutKey(s.status, tileId), lastResult: withoutKey(s.lastResult, tileId) }
+        tileId in s.status || tileId in s.lastResult || tileId in s.resultDue
+          ? {
+              status: withoutKey(s.status, tileId),
+              lastResult: withoutKey(s.lastResult, tileId),
+              resultDue: withoutKey(s.resultDue, tileId)
+            }
           : s
       ),
 
     setResult: (tileId, text) =>
       set((s) => {
         const pending = { ...s.handoffPending }
-        for (const l of s.links) if (l.fromTileId === tileId) pending[l.id] = true
-        return { lastResult: { ...s.lastResult, [tileId]: text }, handoffPending: pending }
+        for (const l of firingLinks(s.tiles, s.links, tileId, text)) pending[l.id] = true
+        return {
+          lastResult: { ...s.lastResult, [tileId]: text },
+          handoffPending: pending,
+          resultDue: withoutKey(s.resultDue, tileId)
+        }
       }),
 
     setLinkMode: (linkId, mode) =>
@@ -391,7 +442,86 @@ export function createCanvasStore(initial: Partial<Pick<CanvasState, 'viewport' 
         autoSends: []
       })),
 
-    userTyped: () => set((s) => (s.autoSends.length ? { autoSends: [] } : s))
+    userTyped: () => set((s) => (s.autoSends.length ? { autoSends: [] } : s)),
+
+    setLinkWhen: (linkId, text) =>
+      set((s) => ({
+        links: s.links.map((l) => {
+          if (l.id !== linkId) return l
+          const { when: _, otherwise: __, ...rest } = l
+          return text.trim() ? { ...rest, when: text.trim() } : rest
+        })
+      })),
+
+    setLinkOtherwise: (linkId, on) =>
+      set((s) => ({
+        links: s.links.map((l) => {
+          if (l.id !== linkId) return l
+          const { when: _, otherwise: __, ...rest } = l
+          return on ? { ...rest, otherwise: true as const } : rest
+        })
+      })),
+
+    setLinkSplit: (linkId, on) =>
+      set((s) => ({
+        links: s.links.map((l) => {
+          if (l.id !== linkId) return l
+          const { split: _, ...rest } = l
+          return on ? { ...rest, split: true as const } : rest
+        })
+      })),
+
+    setTileFlag: (tileId, flag, on) =>
+      set((s) => ({
+        tiles: updateTile(s.tiles, tileId, (t) => {
+          const { [flag]: _, ...rest } = t
+          return on ? { ...rest, [flag]: true as const } : rest
+        })
+      })),
+
+    spawnWorkers: (templateId, n, at) => {
+      let ids: string[] = []
+      set((s) => {
+        const t = s.tiles.find((x) => x.id === templateId)
+        if (!t || n < 1) return s
+        const existing = s.tiles.filter((x) => x.workerOf === templateId)
+        const tiles = [...s.tiles]
+        const links = [...s.links]
+        const fresh: string[] = []
+        for (let i = existing.length; i < n - 1; i++) {
+          // ponytail: workers stack straight down from the template; use placeNewTile if they start landing on other tiles.
+          const { id: _, sessionId: __, branch: ___, join: ____, router: _____, ...copy } = t
+          const w: Tile = {
+            ...copy,
+            id: crypto.randomUUID(),
+            title: uniqueTitle(t.title, tiles),
+            x: t.x,
+            y: t.y + (t.h + TILE_GAP) * (i + 1),
+            workerOf: templateId
+          }
+          tiles.push(w)
+          fresh.push(w.id)
+          for (const l of s.links.filter((l) => l.fromTileId === templateId))
+            links.push({ ...l, id: crypto.randomUUID(), fromTileId: w.id })
+        }
+        ids = [templateId, ...[...existing.map((x) => x.id), ...fresh].slice(0, n - 1)]
+        if (!fresh.length) return s
+        return {
+          tiles,
+          links,
+          order: [...s.order, ...fresh],
+          starting: { ...s.starting, ...Object.fromEntries(fresh.map((id) => [id, at])) }
+        }
+      })
+      return ids
+    },
+
+    queueInput: (tileId, text, enter) => set((s) => ({ queued: { ...s.queued, [tileId]: { text, enter } } })),
+
+    inputDelivered: (tileId) => set((s) => (tileId in s.queued ? { queued: withoutKey(s.queued, tileId) } : s)),
+
+    markStarting: (tileIds, at) =>
+      set((s) => ({ starting: { ...s.starting, ...Object.fromEntries(tileIds.map((id) => [id, at])) } }))
   }))
 }
 

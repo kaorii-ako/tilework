@@ -147,3 +147,31 @@ describe('sessionId', () => {
     expect(parsed?.tiles[0].id).toBe('a')
   })
 })
+
+describe('dynamic workflow fields (KAO-52)', () => {
+  it('keeps join, router, workerOf, when, otherwise and split', () => {
+    const flow: Workspace = {
+      ...ws,
+      tiles: [
+        { ...ws.tiles[0], router: true },
+        { ...ws.tiles[1], join: true },
+        { ...ws.tiles[2], workerOf: 'c' }
+      ],
+      links: [
+        { id: 'l1', fromTileId: 'a', toTileId: 'b', mode: 'manual', when: 'APPROVED', split: true },
+        { id: 'l2', fromTileId: 'a', toTileId: 'c', mode: 'auto', otherwise: true }
+      ]
+    }
+    expect(parseWorkspace(JSON.parse(JSON.stringify(flow)))).toEqual(flow)
+  })
+
+  it('drops bad flag values instead of the tile or link', () => {
+    const parsed = parseWorkspace({
+      ...ws,
+      tiles: [{ ...ws.tiles[0], join: 'yes', router: 1, workerOf: 5 }, ws.tiles[1], ws.tiles[2]],
+      links: [{ id: 'l1', fromTileId: 'a', toTileId: 'b', mode: 'manual', when: '   ', otherwise: 'x', split: 1 }]
+    })
+    expect(parsed?.tiles[0]).toEqual(ws.tiles[0])
+    expect(parsed?.links).toEqual([{ id: 'l1', fromTileId: 'a', toTileId: 'b', mode: 'manual' }])
+  })
+})

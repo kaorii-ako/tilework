@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { Tile } from '../../../shared/types'
-import { LOOP, buildHandoff, handoffBlocker, sendHandoff, startHandoffs } from './handoff'
+import { LOOP, buildHandoff, buildJoinHandoff, deliver, handoffBlocker, sendHandoff, startHandoffs } from './handoff'
+import { STARTUP_MS } from './store'
 import { createCanvasStore } from './store'
 
 const tile = (id: string): Tile => ({ id, title: `Tile ${id}`, x: 0, y: 0, w: 400, h: 300 })
@@ -166,5 +167,182 @@ describe('loop guard', () => {
     t.s().setLinkMode(t.ab, 'auto')
     expect(t.s().loopPaused[t.ab]).toBeUndefined()
     expect(t.s().autoSends).toEqual([])
+  })
+})
+
+/** Tiles by id with a fake PTY writer and clock, for the KAO-52 flows. */
+function flow(ids: string[]) {
+  const store = createCanvasStore({ tiles: ids.map(tile) })
+  const s = () => store.getState()
+  const writes: { tileId: string; data: string; enter: boolean }[] = []
+  let clock = 1_000_000
+  const stop = startHandoffs(
+    store,
+    (tileId, data, enter) => writes.push({ tileId, data, enter }),
+    () => clock
+  )
+  const link = (from: string, to: string) => {
+    s().addLink(from, to)
+    return s().links.find((l) => l.fromTileId === from && l.toTileId === to)!.id
+  }
+  return { store, s, writes, link, stop, tick: (ms: number) => (clock += ms), now: () => clock }
+}
+
+describe('conditional routes (KAO-52)', () => {
+  it('marks only the links whose condition the result meets', () => {
+    const f = flow(['review', 'build', 'done'])
+    const fix = f.link('review', 'build')
+    const ship = f.link('review', 'done')
+    f.s().setLinkWhen(fix, 'CHANGES REQUESTED')
+    f.s().setLinkOtherwise(ship, true)
+    f.s().setResult('review', 'Changes requested: add a test')
+    expect(f.s().handoffPending).toEqual({ [fix]: true })
+    f.s().handoffSent(fix)
+    f.s().setResult('review', 'APPROVED')
+    expect(f.s().handoffPending).toEqual({ [ship]: true })
+  })
+
+  it('a review loop stops on its own once approved', () => {
+    const f = flow(['build', 'review'])
+    const br = f.link('build', 'review')
+    const rb = f.link('review', 'build')
+    f.s().setLinkWhen(rb, 'CHANGES REQUESTED')
+    f.s().setLinkMode(br, 'auto')
+    f.s().setLinkMode(rb, 'auto')
+    f.s().setResult('build', 'v1')
+    f.s().setResult('review', 'CHANGES REQUESTED: tests')
+    f.s().setResult('build', 'v2')
+    f.s().setResult('review', 'APPROVED')
+    expect(f.writes.map((w) => w.tileId)).toEqual(['review', 'build', 'review'])
+  })
+})
+
+describe('join (KAO-52)', () => {
+  it('waits for every input, then pastes one combined handoff and clears them all', () => {
+    const f = flow(['a', 'b', 'rev'])
+    const ar = f.link('a', 'rev')
+    const br = f.link('b', 'rev')
+    f.s().setTileFlag('rev', 'join', true)
+    f.s().setLinkInstruction(ar, 'Review both.')
+    f.s().setLinkInstruction(br, 'Review both.')
+    f.s().setLinkMode(ar, 'auto')
+    f.s().setStatus('a', 'working')
+    f.s().setStatus('b', 'working')
+    f.s().setStatus('a', 'idle')
+    f.s().setResult('a', 'part A')
+    expect(f.writes).toEqual([])
+    expect(handoffBlocker(f.s(), ar)).toMatch(/Still waiting for Tile b/)
+    f.s().setStatus('b', 'idle')
+    f.s().setResult('b', 'part B')
+    expect(f.writes).toEqual([
+      {
+        tileId: 'rev',
+        data: buildJoinHandoff([
+          { from: 'Tile a', result: 'part A', instruction: 'Review both.' },
+          { from: 'Tile b', result: 'part B', instruction: 'Review both.' }
+        ]),
+        enter: true
+      }
+    ])
+    expect(f.s().handoffPending).toEqual({})
+    expect(f.s().autoSends).toHaveLength(1) // one send for the loop guard
+  })
+
+  it('a later round goes once the busy inputs are done, without waiting on idle ones', () => {
+    const f = flow(['a', 'b', 'rev'])
+    const ar = f.link('a', 'rev')
+    f.link('b', 'rev')
+    f.s().setTileFlag('rev', 'join', true)
+    f.s().setLinkMode(ar, 'auto')
+    f.s().setStatus('b', 'idle') // b isn't reworking anything this round
+    f.s().setStatus('a', 'working')
+    f.s().setStatus('a', 'idle')
+    f.s().setResult('a', 'fix')
+    expect(f.writes).toHaveLength(1)
+    expect(f.writes[0].data).toContain('Handoffs from Tile a:')
+    expect(f.writes[0].data).not.toContain('Tile b')
+  })
+
+  it('combines results under headings with each distinct instruction once', () => {
+    expect(
+      buildJoinHandoff([
+        { from: 'A', result: '1', instruction: 'Check it.' },
+        { from: 'B', result: '2', instruction: 'Check it.' }
+      ])
+    ).toBe('\x1b[200~Handoffs from A, B:\r\r--- A ---\r1\r\r--- B ---\r2\r\rCheck it.\x1b[201~')
+  })
+})
+
+describe('split (KAO-52)', () => {
+  const plan = 'Plan:\n1. API\n2. UI\n3. Docs'
+
+  it('clones the target per task, copies its outgoing links, and queues each task', () => {
+    const f = flow(['plan', 'build', 'rev'])
+    const pb = f.link('plan', 'build')
+    f.link('build', 'rev')
+    f.s().setLinkSplit(pb, true)
+    f.s().setResult('plan', plan)
+    expect(deliver(f.s(), pb, () => {}, false, f.now())).toEqual([pb])
+    const workers = f.s().tiles.filter((t) => t.workerOf === 'build')
+    expect(workers.map((w) => w.title)).toEqual(['Tile build 2', 'Tile build 3'])
+    expect(f.s().links.filter((l) => l.toTileId === 'rev')).toHaveLength(3)
+    // The template (a plain shell) gets its task at once; new workers wait while starting.
+    expect(f.writes).toHaveLength(1)
+    expect(f.writes[0]).toMatchObject({ tileId: 'build', enter: true })
+    expect(f.writes[0].data).toContain('Your task (1 of 3')
+    expect(Object.keys(f.s().queued)).toEqual(workers.map((w) => w.id))
+    f.s().setStatus(workers[0].id, 'idle') // its SessionStart
+    expect(f.writes.at(-1)).toMatchObject({ tileId: workers[0].id })
+    expect(f.writes.at(-1)!.data).toContain('Your task (2 of 3')
+  })
+
+  it('reuses workers on the next round', () => {
+    const f = flow(['plan', 'build'])
+    const pb = f.link('plan', 'build')
+    f.s().setLinkSplit(pb, true)
+    f.s().setResult('plan', plan)
+    deliver(f.s(), pb, () => {}, false, f.now())
+    f.s().setResult('plan', '- one\n- two')
+    deliver(f.s(), pb, () => {}, false, f.now())
+    expect(f.s().tiles.filter((t) => t.workerOf === 'build')).toHaveLength(2)
+  })
+
+  it('falls back to a plain handoff when there is no list', () => {
+    const f = flow(['plan', 'build'])
+    const pb = f.link('plan', 'build')
+    f.s().setLinkSplit(pb, true)
+    f.s().setResult('plan', 'Just one thing.')
+    const out: string[] = []
+    deliver(f.s(), pb, (_, data) => out.push(data), false, f.now())
+    expect(out).toEqual([buildHandoff('Tile plan', 'Just one thing.')])
+    expect(f.s().tiles).toHaveLength(2)
+  })
+
+  it('a worker that never reports in gets its task after STARTUP_MS', () => {
+    const f = flow(['w'])
+    f.s().markStarting(['w'], f.now())
+    f.s().queueInput('w', 'go', true)
+    expect(f.writes).toEqual([])
+    f.tick(STARTUP_MS)
+    f.s().moveTile('w', 10, 10) // any change re-runs the queue (the app also sets a timer)
+    expect(f.writes).toEqual([{ tileId: 'w', data: 'go', enter: true }])
+    expect(f.s().queued).toEqual({})
+  })
+})
+
+describe('router (KAO-52)', () => {
+  it('tells the router its choices and follows the one it names', () => {
+    const f = flow(['in', 'router', 'fixer', 'writer'])
+    const ir = f.link('in', 'router')
+    const rf = f.link('router', 'fixer')
+    const rw = f.link('router', 'writer')
+    f.s().setTileFlag('router', 'router', true)
+    f.s().setResult('in', 'Login crashes')
+    const out: string[] = []
+    deliver(f.s(), ir, (_, data) => out.push(data), false, f.now())
+    expect(out[0]).toContain('ROUTE: <Tile fixer | Tile writer>')
+    f.s().setResult('router', 'A crash, so:\nROUTE: Tile fixer')
+    expect(f.s().handoffPending).toEqual({ [ir]: true, [rf]: true })
+    expect(f.s().handoffPending[rw]).toBeUndefined()
   })
 })

@@ -14,6 +14,12 @@ export interface Tile {
   sessionId?: string
   /** Branch of the tile's own git worktree, when it was started with one (KAO-50). */
   branch?: string
+  /** Wait for every incoming link, then take one combined handoff (KAO-52). */
+  join?: true
+  /** Ends its reply with `ROUTE: <tile title>` to pick which outgoing link fires (KAO-52). */
+  router?: true
+  /** A parallel worker cloned from this tile by a split link; reused on the next split (KAO-52). */
+  workerOf?: string
   /** Canvas-space position and size in px. */
   x: number
   y: number
@@ -29,6 +35,12 @@ export interface Link {
   mode: 'manual' | 'auto'
   /** What the target should do with the handoff, e.g. "Review this for bugs" (KAO-35). */
   instruction?: string
+  /** Fire only when the source's result contains this text, case-insensitive (KAO-52). */
+  when?: string
+  /** Fire only when none of the source's `when` links matched (KAO-52). */
+  otherwise?: true
+  /** Split the result's task list into parallel workers, one copy of the target per task (KAO-52). */
+  split?: true
 }
 
 /** A launcher entry. No command means the user's login shell. Stored in ~/.config/agent-canvas/presets.json. */
