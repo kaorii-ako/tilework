@@ -52,7 +52,9 @@ function LinkLine({
   const auto = link.mode === 'auto'
   // The chip always says what the next tile is asked to do; click it to edit.
   const text = clip(link.instruction ?? '', 22)
-  const label = (auto ? 'Auto-send · ' : '') + (text || 'Add instruction')
+  // KAO-52: the route comes first, so a branching workflow reads at a glance.
+  const route = link.when ? `if “${clip(link.when, 14)}” · ` : link.otherwise ? 'otherwise · ' : ''
+  const label = route + (link.split ? 'split · ' : '') + (auto ? 'Auto-send · ' : '') + (text || 'Add instruction')
   const w = Math.round(label.length * 6.3 + 20)
   // A→B and B→A share a midpoint when the tiles line up: one chip above the line, one below,
   // each with its Send → on its outer side. Screen px; the group is scaled to screen size.
@@ -91,7 +93,11 @@ function LinkLine({
         {...press(() => editInstruction(link.id))}
       >
         <title>
-          {(link.instruction ? `“${link.instruction}”\n` : '') + 'Click to edit what the next tile should do'}
+          {(link.when ? `Only when the result contains “${link.when}”\n` : '') +
+            (link.otherwise ? 'Only when no other condition matched\n' : '') +
+            (link.split ? 'Splits a task list into parallel workers\n' : '') +
+            (link.instruction ? `“${link.instruction}”\n` : '') +
+            'Click to edit what the next tile should do'}
         </title>
         <rect x={-w / 2} y={-9} width={w} height={18} rx={9} />
         <text className="link-label" dy="0.35em">
@@ -140,8 +146,29 @@ async function editInstruction(linkId: string) {
 
 /** Handoff entries of a link's right-click menu. */
 function LinkMenuItems({ linkId, close }: { linkId: string; close(): void }) {
-  const mode = useCanvas((s) => s.links.find((l) => l.id === linkId)?.mode)
+  const link = useCanvas((s) => s.links.find((l) => l.id === linkId))
+  const mode = link?.mode
   const blocked = useCanvas((s) => handoffBlocker(s, linkId))
+  const from = useCanvas((s) => s.tiles.find((t) => t.id === link?.fromTileId))
+  const to = useCanvas((s) => s.tiles.find((t) => t.id === link?.toTileId))
+  const inputs = useCanvas((s) => s.links.filter((l) => l.toTileId === link?.toTileId).length)
+  if (!link || !from || !to) return null
+  const s = () => canvasStore.getState()
+  const check = (on: boolean, label: string, title: string, f: () => void) => (
+    <button
+      type="button"
+      role="menuitemcheckbox"
+      aria-checked={on}
+      title={title}
+      onClick={() => {
+        f()
+        close()
+      }}
+    >
+      {on ? '✓ ' : ''}
+      {label}
+    </button>
+  )
   return (
     <>
       {/* aria-disabled, not disabled, so the tooltip still shows on hover. */}
@@ -180,8 +207,67 @@ function LinkMenuItems({ linkId, close }: { linkId: string; close(): void }) {
       >
         {mode === 'auto' ? '✓ ' : ''}Auto-send
       </button>
+      <hr />
+      <button
+        type="button"
+        role="menuitem"
+        title="Only hand off when the result contains this text, e.g. APPROVED"
+        onClick={() => {
+          close()
+          void editCondition(linkId)
+        }}
+      >
+        {link.when ? `Only when “${clip(link.when, 18)}”…` : 'Only when result contains…'}
+      </button>
+      {link.when && (
+        <button
+          type="button"
+          role="menuitem"
+          onClick={() => {
+            s().setLinkWhen(linkId, '')
+            close()
+          }}
+        >
+          Clear condition
+        </button>
+      )}
+      {check(!!link.otherwise, 'Otherwise', 'Only hand off when none of this tile’s conditions matched', () =>
+        s().setLinkOtherwise(linkId, !link.otherwise)
+      )}
+      {check(
+        !!link.split,
+        'Split into parallel workers',
+        `Turn a task list into one ${to.title} per task, working at the same time`,
+        () => s().setLinkSplit(linkId, !link.split)
+      )}
+      {inputs > 1 &&
+        check(
+          !!to.join,
+          `${clip(to.title, 18)} waits for all inputs`,
+          'Wait for every busy input, then hand off one combined result',
+          () => s().setTileFlag(to.id, 'join', !to.join)
+        )}
+      {check(
+        !!from.router,
+        `${clip(from.title, 18)} picks the route`,
+        `${from.title} ends its reply with ROUTE: <tile name> to choose which link fires`,
+        () => s().setTileFlag(from.id, 'router', !from.router)
+      )}
     </>
   )
+}
+
+/** Ask for the text a link's source result must contain for it to fire. */
+async function editCondition(linkId: string) {
+  const link = canvasStore.getState().links.find((l) => l.id === linkId)
+  if (!link) return
+  const text = await askText({
+    title: `Only hand off to ${titleOf(link.toTileId)} when ${titleOf(link.fromTileId)}’s result contains:`,
+    initial: link.when,
+    placeholder: 'e.g. APPROVED',
+    ok: 'Save'
+  })
+  if (text) canvasStore.getState().setLinkWhen(linkId, text)
 }
 
 /**

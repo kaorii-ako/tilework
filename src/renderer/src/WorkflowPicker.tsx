@@ -57,16 +57,18 @@ export function WorkflowPicker({
   onStart,
   onClose
 }: {
-  /** Resolves to an error message when the workflow couldn't start (e.g. its worktrees need a git repo). */
-  onStart(wf: Workflow, cwd: string | undefined): Promise<string | void>
+  /** `goal` is typed into the workflow's first tile once it's ready (KAO-52). Resolves to an error message
+   * when the workflow couldn't start (e.g. its worktrees need a git repo). */
+  onStart(wf: Workflow, cwd: string | undefined, goal: string): Promise<string | void>
   onClose(): void
 }) {
   const [error, setError] = useState('')
-  const start = async (w: Workflow) => setError((await onStart(w, folder)) || '')
+  const start = async (w: Workflow) => setError((await onStart(w, folder, goal)) || '')
   const [custom, setCustom] = useState<Workflow[]>([])
   const [picked, setPicked] = useState(BUILTIN_WORKFLOWS[0].id)
   const [menu, setMenu] = useState<{ id: string; x: number; y: number } | null>(null)
   const [folder, change] = useFolder()
+  const [goal, setGoal] = useState('')
   useEffect(() => {
     window.canvasApi.loadWorkflows().then(setCustom)
   }, [])
@@ -129,6 +131,16 @@ export function WorkflowPicker({
             </button>
           ))}
         </div>
+        <label>
+          Goal (optional)
+          <input
+            className="goal"
+            placeholder={`What should ${wf.tiles.find((t) => !wf.links.some((l) => l.to === t.key))?.title ?? 'the first tile'} work on?`}
+            value={goal}
+            onChange={(e) => setGoal(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && void start(wf)}
+          />
+        </label>
         <div className="row spread">
           <FolderLine folder={folder} onChange={change} />
           <div className="row">

@@ -1,6 +1,15 @@
 import { describe, expect, it } from 'vitest'
 import type { Tile } from '../../../shared/types'
-import { LOOP, buildHandoff, buildJoinHandoff, deliver, handoffBlocker, sendHandoff, startHandoffs } from './handoff'
+import {
+  LOOP,
+  asPaste,
+  buildHandoff,
+  buildJoinHandoff,
+  deliver,
+  handoffBlocker,
+  sendHandoff,
+  startHandoffs
+} from './handoff'
 import { STARTUP_MS } from './store'
 import { createCanvasStore } from './store'
 
@@ -344,5 +353,11 @@ describe('router (KAO-52)', () => {
     f.s().setResult('router', 'A crash, so:\nROUTE: Tile fixer')
     expect(f.s().handoffPending).toEqual({ [ir]: true, [rf]: true })
     expect(f.s().handoffPending[rw]).toBeUndefined()
+  })
+})
+
+describe('asPaste (KAO-52)', () => {
+  it('sends a multi-line goal as one clean paste', () => {
+    expect(asPaste('Build X\n\nPlan it\x07')).toBe('\x1b[200~Build X\r\rPlan it\x1b[201~')
   })
 })

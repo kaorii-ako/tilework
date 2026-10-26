@@ -28,6 +28,9 @@ export function buildHandoff(fromTitle: string, result: string, instruction?: st
 
 const paste = (body: string) => `\x1b[200~${body.replace(/\n/g, '\r')}\x1b[201~`
 
+/** Any text as one clean bracketed paste, e.g. a workflow's goal (KAO-52). */
+export const asPaste = (text: string) => paste(clean(text))
+
 /** A join's handoff (KAO-52): every source's result under its own heading, then each distinct instruction. */
 export function buildJoinHandoff(parts: { from: string; result: string; instruction?: string }[]): string {
   const asks = [...new Set(parts.map((p) => clean(p.instruction ?? '').trim()).filter(Boolean))]

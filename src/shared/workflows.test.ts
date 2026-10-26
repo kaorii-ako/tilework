@@ -13,6 +13,8 @@ describe('built-in workflows', () => {
       'Plan → Build → Review',
       'Plan → 3 Builders → Review',
       'Build ↔ Review',
+      'Plan → Parallel build → Review',
+      'Triage → Fix / Research / Write',
       'Research → Write',
       'Quick fix'
     ])
@@ -187,5 +189,38 @@ describe('dynamic workflow fields (KAO-52)', () => {
     expect(saved.tiles.map((t) => t.title)).toEqual(['Builder', 'Reviewer'])
     expect(saved.tiles[1].join).toBe(true)
     expect(saved.links).toEqual([{ from: 't1', to: 't2', instruction: '', mode: 'manual', when: 'DONE' }])
+  })
+})
+
+describe('dynamic built-ins (KAO-52)', () => {
+  const byId = (id: string) => BUILTIN_WORKFLOWS.find((w) => w.id === id)!
+
+  it('Build ↔ Review only sends fixes back when the reviewer asks for changes', () => {
+    const wf = byId('build-review')
+    expect(wf.links[0].instruction).toContain('APPROVED or CHANGES REQUESTED')
+    expect(wf.links[1].when).toBe('CHANGES REQUESTED')
+  })
+
+  it('Parallel build splits into builders, joins at the reviewer, and loops on changes', () => {
+    const wf = byId('parallel-build')
+    expect(wf.brief).toMatch(/numbered list/)
+    expect(wf.links.map((l) => [l.from, l.to, l.split, l.when])).toEqual([
+      ['plan', 'build', true, undefined],
+      ['build', 'review', undefined, undefined],
+      ['review', 'build', undefined, 'CHANGES REQUESTED']
+    ])
+    expect(wf.tiles.find((t) => t.key === 'review')?.join).toBe(true)
+  })
+
+  it('Triage routes to one of three specialists', () => {
+    const wf = byId('triage')
+    expect(wf.tiles[0].router).toBe(true)
+    expect(wf.links.map((l) => l.to)).toEqual(['fix', 'research', 'write'])
+  })
+
+  it('keeps a custom workflow brief', () => {
+    expect(parseWorkflow({ ...byId('quick-fix'), id: 'c', builtIn: undefined, brief: ' Be brief. ' })?.brief).toBe(
+      'Be brief.'
+    )
   })
 })

@@ -120,6 +120,16 @@ input:focus-visible {
     monospace;
   color: var(--muted);
 }
+.tile-tag {
+  flex: none;
+  padding: 2px 6px;
+  border: 1px solid var(--edge);
+  border-radius: 999px;
+  font-size: 10px;
+  line-height: 1;
+  color: var(--muted);
+  white-space: nowrap;
+}
 .launcher .check {
   display: flex;
   gap: 8px;
@@ -352,6 +362,11 @@ input:focus-visible {
   position: fixed;
   z-index: 20;
   padding: 4px;
+}
+.link-menu hr {
+  margin: 4px 0;
+  border: 0;
+  border-top: 1px solid var(--edge);
 }
 .link-menu button {
   display: block;

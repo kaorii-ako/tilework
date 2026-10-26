@@ -123,6 +123,22 @@ export const TileFrame = memo(function TileFrame({ id }: { id: string }) {
             {tile.branch}
           </span>
         )}
+        {/* KAO-52: how this tile takes part in a dynamic workflow. */}
+        {tile.join && (
+          <span className="tile-tag" title="Waits for its busy inputs, then gets one combined handoff">
+            waits for all
+          </span>
+        )}
+        {tile.router && (
+          <span className="tile-tag" title="Picks the next tile by ending its reply with ROUTE: <tile name>">
+            router
+          </span>
+        )}
+        {tile.workerOf && (
+          <span className="tile-tag" title="A parallel worker made by a split link; reused on the next split">
+            worker
+          </span>
+        )}
         <button
           type="button"
           className="tile-close"

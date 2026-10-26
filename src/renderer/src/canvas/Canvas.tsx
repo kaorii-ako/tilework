@@ -4,6 +4,7 @@ import { NEW_TILE, TILE_GAP, canvasStore, placeNewTile, uniqueTitle, useCanvas, 
 import { createSpaceGesture } from './spaceGesture'
 import { perFrame } from './perFrame'
 import { TileFrame } from './TileFrame'
+import { asPaste } from './handoff'
 import { LinkLayer } from './LinkLayer'
 import { Toolbar } from './Toolbar'
 import { HookBanner } from './HookBanner'
@@ -226,7 +227,7 @@ export function Canvas() {
   }
 
   /** Lay a workflow's tiles out left to right, after anything already on the canvas, then show it all. */
-  const startWorkflow = async (wf: Workflow, cwd: string | undefined): Promise<string | void> => {
+  const startWorkflow = async (wf: Workflow, cwd: string | undefined, goal = ''): Promise<string | void> => {
     const s = canvasStore.getState()
     const origin = s.tiles.length
       ? { x: Math.max(...s.tiles.map((t) => t.x + t.w)) + 2 * TILE_GAP, y: Math.min(...s.tiles.map((t) => t.y)) }
@@ -246,6 +247,15 @@ export function Canvas() {
     setPickerOpen(false)
     s.addWorkflow(named, links)
     s.zoomToFit(surfaceSize())
+    // KAO-52: the goal goes to the tile nothing feeds into, once its agent has started.
+    if (goal.trim()) {
+      const first = named.find((t) => !links.some((l) => l.toTileId === t.id)) ?? named[0]
+      s.markStarting(
+        named.map((t) => t.id),
+        Date.now()
+      )
+      s.queueInput(first.id, asPaste([goal.trim(), wf.brief].filter(Boolean).join('\n\n')), true)
+    }
   }
 
   return (

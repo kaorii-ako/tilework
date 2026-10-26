@@ -43,6 +43,8 @@ export interface Workflow {
   description: string
   tiles: WorkflowTile[]
   links: WorkflowLink[]
+  /** Sent with the goal to the first tile, e.g. "answer with a numbered task list" (KAO-52). */
+  brief?: string
   builtIn?: true
 }
 
@@ -66,12 +68,15 @@ const stacked = (t: WorkflowTile, col: number, i: number, n: number): WorkflowTi
   x: col * (W + GAP),
   y: i * (H + GAP / 4) - ((n - 1) * (H + GAP / 4)) / 2
 })
-const manual = (from: string, to: string, instruction: string): WorkflowLink => ({
+const manual = (from: string, to: string, instruction: string, extra: Partial<WorkflowLink> = {}): WorkflowLink => ({
   from,
   to,
   instruction,
-  mode: 'manual'
+  mode: 'manual',
+  ...extra
 })
+/** Ends a review so the next link can route on it (KAO-52). */
+const VERDICT = 'End your reply with one line: APPROVED or CHANGES REQUESTED.'
 
 export const BUILTIN_WORKFLOWS: Workflow[] = [
   {
@@ -122,12 +127,48 @@ export const BUILTIN_WORKFLOWS: Workflow[] = [
   {
     id: 'build-review',
     name: 'Build ↔ Review',
-    description: 'Build, get a review, fix what it found. Both links are manual, so it never loops by itself.',
+    description:
+      'Build, get a review, fix what it found, until the reviewer says APPROVED. Turn on Auto-send to let it loop by itself.',
     builtIn: true,
     tiles: [claude('build', 'Builder', 'sonnet', 0), claude('review', 'Reviewer', 'sonnet', 1)],
     links: [
-      manual('build', 'review', 'Review this for bugs.'),
-      manual('review', 'build', 'Fix what this review found.')
+      manual('build', 'review', `Review this for bugs. ${VERDICT}`),
+      manual('review', 'build', 'Fix what this review found.', { when: 'CHANGES REQUESTED' })
+    ]
+  },
+  {
+    id: 'parallel-build',
+    name: 'Plan → Parallel build → Review',
+    description:
+      'The planner splits the work into tasks, one builder per task works in parallel, and the reviewer checks them together until APPROVED.',
+    builtIn: true,
+    brief: 'Plan this as a numbered list of independent tasks that can be built in parallel, one task per item.',
+    tiles: [
+      claude('plan', 'Planner', 'opus', 0),
+      claude('build', 'Builder', 'sonnet', 1),
+      { ...claude('review', 'Reviewer', 'opus', 2), join: true }
+    ],
+    links: [
+      manual('plan', 'build', "Do your task. Ask if anything's unclear.", { split: true }),
+      manual('build', 'review', `Review these changes together for bugs and gaps. ${VERDICT}`),
+      manual('review', 'build', 'Fix what this review found.', { when: 'CHANGES REQUESTED' })
+    ]
+  },
+  {
+    id: 'triage',
+    name: 'Triage → Fix / Research / Write',
+    description: 'A triager reads the request and routes it to the right specialist, so the path changes each time.',
+    builtIn: true,
+    tiles: [
+      { ...claude('triage', 'Triager', 'sonnet', 0), router: true },
+      claude('fix', 'Fixer', 'sonnet', 1),
+      { ...claude('research', 'Researcher', 'sonnet', 1), y: H + GAP / 2 },
+      { ...claude('write', 'Writer', 'sonnet', 1), y: 2 * (H + GAP / 2) }
+    ],
+    links: [
+      manual('triage', 'fix', 'Fix this bug and run the tests.'),
+      manual('triage', 'research', 'Research this and report what you find.'),
+      manual('triage', 'write', 'Write this up clearly and briefly.')
     ]
   },
   {
@@ -194,7 +235,10 @@ export function parseWorkflow(w: any): Workflow | null {
     for (const k of ['when', 'otherwise', 'split'] as const) if (l[k] !== undefined) (link as any)[k] = l[k]
     links.push(link)
   }
-  return { id: w.id, name: w.name, description: w.description, tiles, links }
+  if (w.brief !== undefined && !str(w.brief, MAX_INSTRUCTION)) return null
+  const wf: Workflow = { id: w.id, name: w.name, description: w.description, tiles, links }
+  if (w.brief?.trim()) wf.brief = w.brief.trim()
+  return wf
 }
 
 /** Custom workflows: keeps the valid ones, drops the rest (and any that claim a built-in id). */
