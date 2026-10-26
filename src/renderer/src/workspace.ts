@@ -24,11 +24,14 @@ export async function restoreWorkspace(canvas: CanvasState): Promise<boolean> {
 
 /** Call whenever tiles, links or viewport change; main debounces the disk write. */
 export function saveWorkspace(canvas: CanvasState): void {
+  // A teammate's tiles (KAO-54) live on their machine; never write them into mine.
+  const tiles = canvas.getTiles().filter((t) => !t.ownerId)
+  const mine = new Set(tiles.map((t) => t.id))
   const ws: Workspace = {
     version: 1,
     viewport: canvas.getViewport(),
-    tiles: canvas.getTiles(),
-    links: canvas.getLinks()
+    tiles,
+    links: canvas.getLinks().filter((l) => mine.has(l.fromTileId) && mine.has(l.toTileId))
   }
   window.canvasApi.saveWorkspace(ws)
 }

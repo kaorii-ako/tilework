@@ -384,3 +384,63 @@ describe('dynamic workflow settings (KAO-52)', () => {
     expect(s.getState().starting).toEqual({ a: 100 - STARTUP_MS + PTY_SETTLE_MS, b: 1 })
   })
 })
+
+describe('team mode (KAO-54)', () => {
+  const shared = (id: string, x = 0) => ({ id, title: id, x, y: 0, w: 400, h: 300 })
+  const team = { me: 'me', role: 'host' as const, people: [] }
+
+  it('puts a teammate’s tiles and links on the canvas, updating in place', () => {
+    const s = createCanvasStore({ tiles: [tile('mine')] })
+    s.getState().setTeam(team)
+    const link = { id: 'l', fromTileId: 'r1', toTileId: 'r2', mode: 'manual' as const }
+    s.getState().setRemote('bob', [shared('r1'), shared('r2')], [link])
+    expect(s.getState().tiles.map((t) => [t.id, t.ownerId])).toEqual([
+      ['mine', undefined],
+      ['r1', 'bob'],
+      ['r2', 'bob']
+    ])
+    expect(s.getState().links).toEqual([link])
+    s.getState().setStatus('r2', 'working')
+    s.getState().setRemote('bob', [shared('r1', 50)], [])
+    expect(s.getState().tiles.map((t) => [t.id, t.x])).toEqual([
+      ['mine', 0],
+      ['r1', 50]
+    ])
+    expect(s.getState().order).toEqual(['mine', 'r1'])
+    expect(s.getState().links).toEqual([])
+    expect(s.getState().status).toEqual({})
+  })
+
+  it('never lets a teammate claim my tile id, and ignores my own echo', () => {
+    const s = createCanvasStore({ tiles: [tile('mine')] })
+    s.getState().setTeam(team)
+    s.getState().setRemote('bob', [shared('mine', 999)], [])
+    s.getState().setRemote('me', [shared('x')], [])
+    expect(s.getState().tiles).toEqual([tile('mine')])
+  })
+
+  it('a teammate’s tile can’t be moved, resized or linked from here', () => {
+    const s = createCanvasStore({ tiles: [tile('mine')] })
+    s.getState().setTeam(team)
+    s.getState().setRemote('bob', [shared('r1')], [])
+    s.getState().moveTile('r1', 500, 500)
+    s.getState().resizeTile('r1', 900, 900)
+    s.getState().addLink('mine', 'r1')
+    s.getState().addLink('r1', 'mine')
+    expect(s.getState().tiles[1]).toMatchObject({ x: 0, w: 400 })
+    expect(s.getState().links).toEqual([])
+  })
+
+  it('leaving drops every teammate’s tiles; nothing happens outside a session', () => {
+    const s = createCanvasStore({ tiles: [tile('mine')] })
+    s.getState().setRemote('bob', [shared('r1')], [])
+    expect(s.getState().tiles).toHaveLength(1)
+    s.getState().setTeam(team)
+    s.getState().setRemote('bob', [shared('r1')], [])
+    s.getState().focusTile('r1')
+    s.getState().setTeam(null)
+    expect(s.getState().tiles.map((t) => t.id)).toEqual(['mine'])
+    expect(s.getState().focusedTileId).toBeNull()
+    expect(s.getState().team).toBeNull()
+  })
+})

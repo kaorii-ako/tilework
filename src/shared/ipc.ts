@@ -24,7 +24,11 @@ export const IPC = {
   hookInstall: 'hook:install',
   workflowsLoad: 'workflows:load',
   workflowsSave: 'workflows:save',
-  menuSaveWorkflow: 'menu:save-workflow'
+  menuSaveWorkflow: 'menu:save-workflow',
+  teamSubscribe: 'team:subscribe',
+  teamUnsubscribe: 'team:unsubscribe',
+  teamPublish: 'team:publish',
+  teamSignal: 'team:signal'
 } as const
 
 // renderer -> main
@@ -116,4 +120,15 @@ export interface CanvasApi {
   onStatus(cb: (e: StatusEvent) => void): () => void
   onResult(cb: (e: ResultEvent) => void): () => void
   onFocusTile(cb: (e: FocusTileEvent) => void): () => void
+  /** Team mode signaling (KAO-54): listen on a `tw-` topic; messages are sealed by the renderer. */
+  teamSubscribe(topic: string): void
+  teamUnsubscribe(topic: string): void
+  /** False when the topic or message is invalid, or the signaling server can't be reached. */
+  teamPublish(topic: string, message: string): Promise<boolean>
+  onTeamSignal(cb: (e: TeamSignalEvent) => void): () => void
+}
+
+export interface TeamSignalEvent {
+  topic: string
+  message: string
 }

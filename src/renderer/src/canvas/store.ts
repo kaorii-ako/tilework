@@ -2,6 +2,7 @@ import { createStore, useStore } from 'zustand'
 import type { AgentState } from '../../../shared/status'
 import type { Link, Tile, Viewport } from '../../../shared/types'
 import { firingLinks } from './flow'
+import type { Person, SharedTile } from '../../../shared/team'
 
 export type { Viewport }
 
@@ -39,6 +40,8 @@ export interface CanvasState {
   starting: Record<string, number>
   /** Starting tiles running an agent that reports a status (Claude Code): wait for it, not just the PTY. */
   waitStatus: Record<string, true>
+  /** Team mode (KAO-54): who I am, my role, and who's here. Null when not sharing. */
+  team: { me: string; role: 'host' | 'guest'; people: Person[] } | null
   /** Tiles that started working and haven't delivered a result yet (Stop's idle lands before the result). */
   resultDue: Record<string, true>
 
@@ -105,6 +108,11 @@ export interface CanvasState {
   inputDelivered(tileId: string): void
   /** Hold input for freshly spawned tiles until they're up (see `starting`). */
   markStarting(tileIds: string[], at: number, waitStatus: boolean): void
+  /** Join or leave a team session. Leaving drops every teammate's tiles and links. */
+  setTeam(team: CanvasState['team']): void
+  setPeople(people: Person[]): void
+  /** Replace everything `owner` shares with this list (their tiles and the links between them). */
+  setRemote(owner: string, tiles: SharedTile[], links: Link[]): void
   /** The tile's PTY is running: a starting tile that doesn't wait for a status is ready PTY_SETTLE_MS after `at`. */
   ptyStarted(tileId: string, at: number): void
 }
@@ -238,6 +246,9 @@ const linksBetween = (links: Link[], tiles: Tile[]) => {
   return links.filter((l) => ids.has(l.fromTileId) && ids.has(l.toTileId))
 }
 
+/** A teammate's tile: it runs on their machine and can't be moved, resized or linked from here. */
+const isRemote = (s: { tiles: Tile[] }, id: string) => !!s.tiles.find((t) => t.id === id)?.ownerId
+
 function withoutKey<T>(r: Record<string, T>, key: string): Record<string, T> {
   const { [key]: _, ...rest } = r
   return rest
@@ -265,6 +276,7 @@ export function createCanvasStore(initial: Partial<Pick<CanvasState, 'viewport' 
     queued: {},
     starting: {},
     waitStatus: {},
+    team: null,
     resultDue: {},
 
     panBy: (dx, dy) => set((s) => ({ viewport: { ...s.viewport, x: s.viewport.x + dx, y: s.viewport.y + dy } })),
@@ -329,16 +341,22 @@ export function createCanvasStore(initial: Partial<Pick<CanvasState, 'viewport' 
 
     // Whole pixels so terminal text never lands on a half pixel.
     moveTile: (id, x, y) =>
-      set((s) => ({ tiles: updateTile(s.tiles, id, (t) => ({ ...t, x: Math.round(x), y: Math.round(y) })) })),
+      set((s) =>
+        isRemote(s, id) ? s : { tiles: updateTile(s.tiles, id, (t) => ({ ...t, x: Math.round(x), y: Math.round(y) })) }
+      ),
 
     resizeTile: (id, w, h) =>
-      set((s) => ({
-        tiles: updateTile(s.tiles, id, (t) => ({
-          ...t,
-          w: Math.max(MIN_TILE.w, Math.round(w)),
-          h: Math.max(MIN_TILE.h, Math.round(h))
-        }))
-      })),
+      set((s) =>
+        isRemote(s, id)
+          ? s
+          : {
+              tiles: updateTile(s.tiles, id, (t) => ({
+                ...t,
+                w: Math.max(MIN_TILE.w, Math.round(w)),
+                h: Math.max(MIN_TILE.h, Math.round(h))
+              }))
+            }
+      ),
 
     focusTile: (id) =>
       set((s) => {
@@ -362,6 +380,8 @@ export function createCanvasStore(initial: Partial<Pick<CanvasState, 'viewport' 
     addLink: (from, to) =>
       set((s) => {
         if (from === to || !s.tiles.some((t) => t.id === from) || !s.tiles.some((t) => t.id === to)) return s
+        // ponytail: links to or from a teammate's tile wait for cross-person handoffs (KAO-55).
+        if (isRemote(s, from) || isRemote(s, to)) return s
         if (s.links.some((l) => l.fromTileId === from && l.toTileId === to)) return s
         return { links: [...s.links, { id: crypto.randomUUID(), fromTileId: from, toTileId: to, mode: 'manual' }] }
       }),
@@ -552,6 +572,51 @@ export function createCanvasStore(initial: Partial<Pick<CanvasState, 'viewport' 
           ? { ...s.waitStatus, ...Object.fromEntries(tileIds.map((id) => [id, true as const])) }
           : s.waitStatus
       })),
+
+    setTeam: (team) =>
+      set((s) => {
+        if (team) return { team }
+        const remote = new Set(s.tiles.filter((t) => t.ownerId).map((t) => t.id))
+        if (!remote.size) return { team: null }
+        const keep = (id: string) => !remote.has(id)
+        return {
+          team: null,
+          tiles: s.tiles.filter((t) => keep(t.id)),
+          order: s.order.filter(keep),
+          links: s.links.filter((l) => keep(l.fromTileId) && keep(l.toTileId)),
+          status: Object.fromEntries(Object.entries(s.status).filter(([id]) => keep(id))),
+          focusedTileId: s.focusedTileId && keep(s.focusedTileId) ? s.focusedTileId : null,
+          selectedLinkId: null
+        }
+      }),
+
+    setPeople: (people) => set((s) => (s.team ? { team: { ...s.team, people } } : s)),
+
+    setRemote: (owner, shared, links) =>
+      set((s) => {
+        if (!s.team || owner === s.team.me) return s
+        // A teammate can't take over a tile id that's mine or someone else's.
+        const taken = new Set(s.tiles.filter((t) => t.ownerId !== owner).map((t) => t.id))
+        const incoming = new Map<string, Tile>()
+        for (const t of shared) if (!taken.has(t.id)) incoming.set(t.id, { ...t, ownerId: owner })
+        const old = new Set(s.tiles.filter((t) => t.ownerId === owner).map((t) => t.id))
+        const gone = (id: string) => old.has(id) && !incoming.has(id)
+        const added = [...incoming.keys()].filter((id) => !old.has(id))
+        // Updated tiles stay where they are in the list and the z-order; new ones go on top.
+        return {
+          tiles: [
+            ...s.tiles.filter((t) => !gone(t.id)).map((t) => incoming.get(t.id) ?? t),
+            ...added.map((id) => incoming.get(id)!)
+          ],
+          order: [...s.order.filter((id) => !gone(id)), ...added],
+          links: [
+            ...s.links.filter((l) => !old.has(l.fromTileId) && !old.has(l.toTileId)),
+            ...links.filter((l) => incoming.has(l.fromTileId) && incoming.has(l.toTileId))
+          ],
+          status: Object.fromEntries(Object.entries(s.status).filter(([id]) => !gone(id))),
+          focusedTileId: s.focusedTileId && gone(s.focusedTileId) ? null : s.focusedTileId
+        }
+      }),
 
     // ponytail: a fixed settle delay; shell integration (an OSC "prompt ready" mark) would be exact.
     ptyStarted: (tileId, at) =>

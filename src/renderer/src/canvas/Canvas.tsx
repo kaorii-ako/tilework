@@ -8,6 +8,7 @@ import { asPaste } from './handoff'
 import { LinkLayer } from './LinkLayer'
 import { Toolbar } from './Toolbar'
 import { HookBanner } from './HookBanner'
+import { TeamBar } from '../team/TeamBar'
 import { EmptyState, Launcher, type LaunchChoice } from '../Launcher'
 import { WorkflowPicker } from '../WorkflowPicker'
 import { PromptHost, askText } from '../Prompt'
@@ -279,6 +280,7 @@ export function Canvas() {
         />
       )}
       <HookBanner />
+      <TeamBar />
       {launcherOpen && (
         <Launcher
           onLaunch={launch}

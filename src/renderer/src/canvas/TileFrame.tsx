@@ -91,10 +91,16 @@ export const TileFrame = memo(function TileFrame({ id }: { id: string }) {
   const z = useCanvas((s) => s.order.indexOf(id))
   const focused = useCanvas((s) => s.focusedTileId === id)
   const live = useCanvas((s) => s.viewport.zoom === 1)
+  // Team mode (KAO-54): a teammate's tile runs on their machine; here it's a read-only mirror.
+  const owner = useCanvas((s) => {
+    const o = s.tiles.find((t) => t.id === id)?.ownerId
+    return o ? (s.team?.people.find((p) => p.id === o) ?? null) : null
+  })
   if (!tile) return null
+  const remote = !!tile.ownerId
 
   const startDrag = (kind: 'move' | 'resize') => (e: ReactPointerEvent) => {
-    if (e.button !== 0) return
+    if (e.button !== 0 || remote) return
     e.preventDefault()
     const s = canvasStore.getState()
     const start = kind === 'move' ? { x: tile.x, y: tile.y } : { x: tile.w, y: tile.h }
@@ -108,9 +114,15 @@ export const TileFrame = memo(function TileFrame({ id }: { id: string }) {
 
   return (
     <section
-      className={focused ? 'tile focused' : 'tile'}
+      className={'tile' + (focused ? ' focused' : '') + (remote ? ' remote' : '')}
       data-tile-id={id}
-      style={{ transform: `translate(${tile.x}px, ${tile.y}px)`, width: tile.w, height: tile.h, zIndex: z + 1 }}
+      style={{
+        transform: `translate(${tile.x}px, ${tile.y}px)`,
+        width: tile.w,
+        height: tile.h,
+        zIndex: z + 1,
+        ...(owner && ({ '--owner': owner.color } as object))
+      }}
       onPointerDownCapture={() => canvasStore.getState().focusTile(id)}
     >
       <header className="tile-bar" onPointerDown={startDrag('move')}>
@@ -134,28 +146,50 @@ export const TileFrame = memo(function TileFrame({ id }: { id: string }) {
             router
           </span>
         )}
+        {remote && (
+          <span
+            className="tile-owner"
+            title={`${owner?.name ?? 'A teammate'}’s agent, running on their machine (view only)`}
+          >
+            {owner?.name ?? 'Teammate'}
+          </span>
+        )}
         {tile.workerOf && (
           <span className="tile-tag" title="A parallel worker made by a split link; reused on the next split">
             worker
           </span>
         )}
-        <button
-          type="button"
-          className="tile-close"
-          title="Close tile"
-          onPointerDown={(e) => e.stopPropagation()}
-          onClick={() => canvasStore.getState().removeTile(id)}
-        >
-          ×
-        </button>
+        {!remote && (
+          <button
+            type="button"
+            className="tile-close"
+            title="Close tile"
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={() => canvasStore.getState().removeTile(id)}
+          >
+            ×
+          </button>
+        )}
       </header>
-      <TerminalTile tileId={id} command={tile.command} args={tile.args} shell={tile.shell} cwd={tile.cwd} live={live} />
-      <div className="tile-resize" onPointerDown={startDrag('resize')} />
-      <div className="port-in" />
-      {/* The whole right edge starts a link; the dot in its middle shows where the line leaves. */}
-      <div className="link-edge" title="Drag onto another tile to link" onPointerDown={(e) => startLink(e, id)}>
-        <i className="port-out" />
-      </div>
+      <TerminalTile
+        tileId={id}
+        command={tile.command}
+        args={tile.args}
+        shell={tile.shell}
+        cwd={tile.cwd}
+        live={live}
+        mirror={remote}
+      />
+      {!remote && (
+        <>
+          <div className="tile-resize" onPointerDown={startDrag('resize')} />
+          <div className="port-in" />
+          {/* The whole right edge starts a link; the dot in its middle shows where the line leaves. */}
+          <div className="link-edge" title="Drag onto another tile to link" onPointerDown={(e) => startLink(e, id)}>
+            <i className="port-out" />
+          </div>
+        </>
+      )}
     </section>
   )
 })

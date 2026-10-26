@@ -20,6 +20,8 @@ export interface Tile {
   router?: true
   /** A parallel worker cloned from this tile by a split link; reused on the next split (KAO-52). */
   workerOf?: string
+  /** Team mode (KAO-54): set on a teammate's tile, which runs on their machine. Never saved. */
+  ownerId?: string
   /** Canvas-space position and size in px. */
   x: number
   y: number

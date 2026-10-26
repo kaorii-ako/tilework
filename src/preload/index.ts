@@ -6,7 +6,8 @@ import {
   type ExitEvent,
   type FocusTileEvent,
   type ResultEvent,
-  type StatusEvent
+  type StatusEvent,
+  type TeamSignalEvent
 } from '../shared/ipc'
 
 function listen<T>(channel: string, cb: (e: T) => void): () => void {
@@ -34,7 +35,11 @@ const api: CanvasApi = {
   onExit: (cb) => listen<ExitEvent>(IPC.exit, cb),
   onStatus: (cb) => listen<StatusEvent>(IPC.status, cb),
   onResult: (cb) => listen<ResultEvent>(IPC.result, cb),
-  onFocusTile: (cb) => listen<FocusTileEvent>(IPC.focusTile, cb)
+  onFocusTile: (cb) => listen<FocusTileEvent>(IPC.focusTile, cb),
+  teamSubscribe: (topic) => ipcRenderer.send(IPC.teamSubscribe, topic),
+  teamUnsubscribe: (topic) => ipcRenderer.send(IPC.teamUnsubscribe, topic),
+  teamPublish: (topic, message) => ipcRenderer.invoke(IPC.teamPublish, topic, message),
+  onTeamSignal: (cb) => listen<TeamSignalEvent>(IPC.teamSignal, cb)
 }
 
 contextBridge.exposeInMainWorld('canvasApi', api)

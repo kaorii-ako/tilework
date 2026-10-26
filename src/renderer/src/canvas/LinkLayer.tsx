@@ -62,20 +62,27 @@ function LinkLine({
   const chipY = twoWay ? dir * 14 : 0
   const sendY = chipY + dir * 28
   // The line and its chip both select the link and open its menu; the chip is the sure target when lines overlap.
-  const pick = {
-    onPointerDown: (e: ReactPointerEvent) => e.button === 0 && canvasStore.getState().selectLink(link.id),
-    onContextMenu: (e: ReactMouseEvent) => {
-      e.preventDefault()
-      canvasStore.getState().selectLink(link.id)
-      onMenu(e.clientX, e.clientY)
-    }
-  }
-  const press = (f: () => void) => ({
-    role: 'button',
-    tabIndex: 0,
-    onClick: f,
-    onKeyDown: (e: ReactKeyboardEvent) => (e.key === 'Enter' || e.key === ' ') && f()
-  })
+  // A teammate's link (KAO-54) is shown but can't be selected, edited or sent from here.
+  const remote = !!from.ownerId
+  const pick = remote
+    ? {}
+    : {
+        onPointerDown: (e: ReactPointerEvent) => e.button === 0 && canvasStore.getState().selectLink(link.id),
+        onContextMenu: (e: ReactMouseEvent) => {
+          e.preventDefault()
+          canvasStore.getState().selectLink(link.id)
+          onMenu(e.clientX, e.clientY)
+        }
+      }
+  const press = (f: () => void) =>
+    remote
+      ? {}
+      : {
+          role: 'button',
+          tabIndex: 0,
+          onClick: f,
+          onKeyDown: (e: ReactKeyboardEvent) => (e.key === 'Enter' || e.key === ' ') && f()
+        }
   if (layer === 'line')
     return (
       <g className={selected ? 'link selected' : 'link'} data-state={state} data-link-id={link.id}>

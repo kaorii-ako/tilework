@@ -1,4 +1,5 @@
 import { app, BrowserWindow, dialog, ipcMain, Menu } from 'electron'
+import { SignalHub, validMessage, validTopic } from './signal'
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { homedir } from 'node:os'
@@ -101,6 +102,14 @@ ipcMain.handle(IPC.hookInstall, () => {
 })
 
 const workflowsPath = configPath('workflows.json')
+// Team mode signaling (KAO-54): main only relays sealed text on `tw-` topics; SignalHub validates both.
+const signals = new SignalHub((topic, message) => win?.webContents.send(IPC.teamSignal, { topic, message }))
+ipcMain.on(IPC.teamSubscribe, (_e, topic: unknown) => validTopic(topic) && signals.subscribe(topic))
+ipcMain.on(IPC.teamUnsubscribe, (_e, topic: unknown) => validTopic(topic) && signals.unsubscribe(topic))
+ipcMain.handle(IPC.teamPublish, (_e, topic: unknown, message: unknown) =>
+  validTopic(topic) && validMessage(message) ? signals.publish(topic, message) : false
+)
+
 ipcMain.handle(IPC.workflowsLoad, () => loadWorkflows(workflowsPath))
 ipcMain.handle(IPC.workflowsSave, (_e, list: unknown) => saveWorkflows(workflowsPath, list))
 
@@ -179,6 +188,7 @@ app.whenReady().then(() => {
 })
 app.on('window-all-closed', () => app.quit())
 app.on('before-quit', () => {
+  signals.closeAll()
   workspace.flush()
   ptys.killAll()
 })

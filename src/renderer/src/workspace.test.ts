@@ -64,3 +64,24 @@ describe('startWorkspace', () => {
     expect(save.mock.calls[0][0].links).toEqual([])
   })
 })
+
+describe('saveWorkspace (KAO-54)', () => {
+  it('leaves teammates’ tiles and their links out of the saved file', async () => {
+    const { saveWorkspace } = await import('./workspace')
+    const save = vi.fn()
+    vi.stubGlobal('window', { canvasApi: { saveWorkspace: save } })
+    const t = (id: string, ownerId?: string) => ({ id, title: id, x: 0, y: 0, w: 1, h: 1, ...(ownerId && { ownerId }) })
+    saveWorkspace({
+      getTiles: () => [t('a'), t('b'), t('r', 'bob')],
+      getViewport: () => ({ x: 0, y: 0, zoom: 1 }),
+      getLinks: () => [
+        { id: 'ab', fromTileId: 'a', toTileId: 'b', mode: 'manual' },
+        { id: 'ar', fromTileId: 'a', toTileId: 'r', mode: 'manual' }
+      ],
+      setLayout: () => {}
+    })
+    expect(save.mock.calls[0][0].tiles.map((x: { id: string }) => x.id)).toEqual(['a', 'b'])
+    expect(save.mock.calls[0][0].links.map((x: { id: string }) => x.id)).toEqual(['ab'])
+    vi.unstubAllGlobals()
+  })
+})
