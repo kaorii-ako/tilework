@@ -933,7 +933,7 @@ input:focus-visible {
 }
 .team-requests {
   position: absolute;
-  top: 56px;
+  top: 76px; /* below the hook banner */
   left: 50%;
   transform: translateX(-50%);
   z-index: 7;

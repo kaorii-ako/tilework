@@ -102,6 +102,11 @@ ipcMain.handle(IPC.hookInstall, () => {
 })
 
 const workflowsPath = configPath('workflows.json')
+// Team mode (KAO-54): Chromium hides local addresses from WebRTC behind mDNS names, which don't
+// resolve on Linux without avahi, so teammates on one network couldn't connect. Peers here are
+// teammates the host approved, so plain local addresses are fine.
+app.commandLine.appendSwitch('disable-features', 'WebRtcHideLocalIpsWithMdns')
+
 // Team mode signaling (KAO-54): main only relays sealed text on `tw-` topics; SignalHub validates both.
 const signals = new SignalHub((topic, message) => win?.webContents.send(IPC.teamSignal, { topic, message }))
 ipcMain.on(IPC.teamSubscribe, (_e, topic: unknown) => validTopic(topic) && signals.subscribe(topic))

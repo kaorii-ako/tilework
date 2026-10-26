@@ -48,5 +48,9 @@ Electron + electron-vite, React, TypeScript (strict).
   - **Router:** a tile with `router` is told its choices, and the `ROUTE: <tile title>` line in its reply decides which links fire.
   - **Queued input:** split tasks and a workflow's goal wait in `queued` until the tile is ready. A Claude Code tile is ready at its first status. Any other tile is ready `PTY_SETTLE_MS` after its PTY starts, because a login shell's startup can read stdin and eat a paste.
   - **Settings:** everything is set from the link's right-click menu, shown on link chips and tile tags, saved in `workspace.json`, and kept in custom workflows. Split workers are left out of saved workflows.
-- **Shared types** (`src/shared/types.ts`). `Tile {id, title, command?, cwd?, x, y, w, h}` is the single shape the canvas, launcher and persistence all use. Extend it there; don't fork it.
-- node-pty is a native module, rebuilt for Electron's ABI by `electron-builder install-app-deps` in `postinstall`.
+- **Team mode** (`src/shared/team.ts`, `src/renderer/src/team/`, `src/main/signal.ts`, KAO-54). Teammates share one canvas peer to peer, free and without accounts:
+  - **Connection:** WebRTC data channels, with public STUN servers. The connection details are swapped through a public ntfy.sh topic (or `TILEWORK_SIGNAL_URL`), sealed with AES-256-GCM using the key from the invite code (`tw1.<room>.<key>`). Main relays only ciphertext, and only on `tw-` topics.
+  - **Joining:** the host approves each join and relays between guests.
+  - **Routing:** `TeamCore` routes messages and checks that a tile's output, screen, size and status come from its owner.
+  - **Teammates' tiles:** each carries `ownerId` and renders as a read-only mirror (`TerminalTile mirror`). No process runs, there's no input, and it keeps the owner's grid size. Only the title, geometry and flow flags are shared, never the command, folder or session. These tiles are never saved, and they can't be moved, resized or linked locally.
+  - **Limits:** strict NATs need a TURN relay, which isn't built yet (KAO-57). Cross-person handoffs are KAO-55, and overlap warnings are KAO-56.
