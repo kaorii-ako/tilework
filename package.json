@@ -1,6 +1,6 @@
 {
   "name": "tilework",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Run many coding agents side by side on an infinite canvas of real terminals. Built for Linux.",
   "main": "out/main/index.js",
   "scripts": {
