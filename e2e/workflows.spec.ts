@@ -29,13 +29,18 @@ for (const wf of BUILTIN_WORKFLOWS.filter((w) => !w.tiles.some((t) => t.worktree
     await expect(page.locator('.link')).toHaveCount(wf.links.length)
     expect(await instructions(page)).toEqual(wf.links.map((l) => l.instruction))
     await expect(page.locator('.link-chip', { hasText: 'Auto-send' })).toHaveCount(0) // all manual
-    // Left to right, and zoomed so all of it is on screen.
+    // No two tiles overlap (rows, or a router's column of choices), and all of it is on screen.
     const boxes = await tiles(page).evaluateAll((els) => els.map((e) => e.getBoundingClientRect().toJSON()))
     const view = page.viewportSize() ?? (await page.evaluate(() => ({ width: innerWidth, height: innerHeight })))
     for (const [i, b] of boxes.entries()) {
-      if (i) expect(b.x).toBeGreaterThan(boxes[i - 1].x + boxes[i - 1].width)
+      for (const o of boxes.slice(0, i))
+        expect(b.x >= o.x + o.width || o.x >= b.x + b.width || b.y >= o.y + o.height || o.y >= b.y + b.height).toBe(
+          true
+        )
       expect(b.x).toBeGreaterThanOrEqual(0)
       expect(b.x + b.width).toBeLessThanOrEqual(view.width)
+      expect(b.y).toBeGreaterThanOrEqual(0)
+      expect(b.y + b.height).toBeLessThanOrEqual(view.height)
     }
     await app.close()
   })

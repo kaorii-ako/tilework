@@ -14,7 +14,9 @@ import {
   placeNewTile,
   revealViewport,
   uniqueTitle,
-  screenToCanvas
+  screenToCanvas,
+  PTY_SETTLE_MS,
+  STARTUP_MS
 } from './store'
 
 const tile = (id: string, x = 0, y = 0): Tile => ({ id, title: id, x, y, w: 400, h: 300 })
@@ -365,11 +367,20 @@ describe('dynamic workflow settings (KAO-52)', () => {
 
   it('a removed tile drops its queued input and starting mark; a status ends starting', () => {
     const s = createCanvasStore({ tiles: [tile('a'), tile('b')] })
-    s.getState().markStarting(['a', 'b'], 1)
+    s.getState().markStarting(['a', 'b'], 1, true)
     s.getState().queueInput('a', 'hi', true)
     s.getState().removeTile('a')
     s.getState().setStatus('b', 'idle')
     expect(s.getState().queued).toEqual({})
     expect(s.getState().starting).toEqual({})
+  })
+
+  it('ptyStarted starts the settle countdown unless the tile waits for a status', () => {
+    const s = createCanvasStore({ tiles: [tile('a'), tile('b')] })
+    s.getState().markStarting(['a'], 1, false)
+    s.getState().markStarting(['b'], 1, true)
+    s.getState().ptyStarted('a', 100)
+    s.getState().ptyStarted('b', 100)
+    expect(s.getState().starting).toEqual({ a: 100 - STARTUP_MS + PTY_SETTLE_MS, b: 1 })
   })
 })

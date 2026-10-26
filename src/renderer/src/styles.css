@@ -779,6 +779,15 @@ input:focus-visible {
   fill: var(--accent);
   stroke: none;
 }
+.picker .goal-row {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+}
+.picker .goal-row input {
+  flex: 1;
+}
 .picker .folder-line {
   margin: 0;
 }

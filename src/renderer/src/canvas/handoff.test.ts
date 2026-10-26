@@ -10,7 +10,7 @@ import {
   sendHandoff,
   startHandoffs
 } from './handoff'
-import { STARTUP_MS } from './store'
+import { PTY_SETTLE_MS, STARTUP_MS } from './store'
 import { createCanvasStore } from './store'
 
 const tile = (id: string): Tile => ({ id, title: `Tile ${id}`, x: 0, y: 0, w: 400, h: 300 })
@@ -290,12 +290,13 @@ describe('split (KAO-52)', () => {
     const pb = f.link('plan', 'build')
     f.link('build', 'rev')
     f.s().setLinkSplit(pb, true)
+    f.s().setStatus('build', 'idle') // a Claude Code template, so its workers wait to start
     f.s().setResult('plan', plan)
     expect(deliver(f.s(), pb, () => {}, false, f.now())).toEqual([pb])
     const workers = f.s().tiles.filter((t) => t.workerOf === 'build')
     expect(workers.map((w) => w.title)).toEqual(['Tile build 2', 'Tile build 3'])
     expect(f.s().links.filter((l) => l.toTileId === 'rev')).toHaveLength(3)
-    // The template (a plain shell) gets its task at once; new workers wait while starting.
+    // The template is idle and gets its task at once; new workers wait while starting.
     expect(f.writes).toHaveLength(1)
     expect(f.writes[0]).toMatchObject({ tileId: 'build', enter: true })
     expect(f.writes[0].data).toContain('Your task (1 of 3')
@@ -303,6 +304,21 @@ describe('split (KAO-52)', () => {
     f.s().setStatus(workers[0].id, 'idle') // its SessionStart
     expect(f.writes.at(-1)).toMatchObject({ tileId: workers[0].id })
     expect(f.writes.at(-1)!.data).toContain('Your task (2 of 3')
+  })
+
+  it('workers of a plain shell get their task once their PTY is up and settled', () => {
+    const f = flow(['plan', 'build'])
+    const pb = f.link('plan', 'build')
+    f.s().setLinkSplit(pb, true)
+    f.s().setResult('plan', '- one\n- two')
+    deliver(f.s(), pb, () => {}, false, f.now())
+    const worker = f.s().tiles[2].id
+    expect(f.writes.map((w) => w.tileId)).toEqual(['build'])
+    f.s().ptyStarted(worker, f.now())
+    expect(f.writes.map((w) => w.tileId)).toEqual(['build']) // its shell is still starting up
+    f.tick(PTY_SETTLE_MS)
+    f.s().moveTile(worker, 0, 0) // any change re-runs the queue (the app also sets a timer)
+    expect(f.writes.map((w) => w.tileId)).toEqual(['build', worker])
   })
 
   it('reuses workers on the next round', () => {
@@ -329,7 +345,7 @@ describe('split (KAO-52)', () => {
 
   it('a worker that never reports in gets its task after STARTUP_MS', () => {
     const f = flow(['w'])
-    f.s().markStarting(['w'], f.now())
+    f.s().markStarting(['w'], f.now(), true)
     f.s().queueInput('w', 'go', true)
     expect(f.writes).toEqual([])
     f.tick(STARTUP_MS)

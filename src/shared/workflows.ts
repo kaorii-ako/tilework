@@ -160,7 +160,7 @@ export const BUILTIN_WORKFLOWS: Workflow[] = [
     description: 'A triager reads the request and routes it to the right specialist, so the path changes each time.',
     builtIn: true,
     tiles: [
-      { ...claude('triage', 'Triager', 'sonnet', 0), router: true },
+      { ...claude('triage', 'Triager', 'sonnet', 0), router: true, y: H + GAP / 2 }, // level with the middle choice
       claude('fix', 'Fixer', 'sonnet', 1),
       { ...claude('research', 'Researcher', 'sonnet', 1), y: H + GAP / 2 },
       { ...claude('write', 'Writer', 'sonnet', 1), y: 2 * (H + GAP / 2) }

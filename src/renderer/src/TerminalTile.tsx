@@ -98,7 +98,10 @@ export const TerminalTile = memo(function TerminalTile({ tileId, command, args, 
     const resize = term.onResize(({ cols, rows }) => api.resize({ tileId, cols, rows }))
     // Read the session at spawn time, so learning a new one later never respawns the tile.
     const resume = canvasStore.getState().tiles.find((t) => t.id === tileId)?.sessionId
-    api.spawn({ tileId, command, args, shell, cwd, resume, cols: term.cols, rows: term.rows })
+    // KAO-52: queued input (a split worker's task) waits until the PTY is there to take it.
+    void api
+      .spawn({ tileId, command, args, shell, cwd, resume, cols: term.cols, rows: term.rows })
+      .then(() => canvasStore.getState().ptyStarted(tileId, Date.now()))
 
     // Refit once the size settles (no resize for 120 ms), so a resize drag doesn't reflow the
     // terminal or flood the PTY with SIGWINCH on every frame.

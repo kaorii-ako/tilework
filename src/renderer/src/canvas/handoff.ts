@@ -203,6 +203,7 @@ export function startHandoffs(store: CanvasStore, write: Write, now: () => numbe
         n.status !== p.status ||
         n.handoffPending !== p.handoffPending ||
         n.queued !== p.queued ||
+        n.starting !== p.starting ||
         n.tiles !== p.tiles) &&
       run()
   )

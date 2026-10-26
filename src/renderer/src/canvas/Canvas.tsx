@@ -252,7 +252,8 @@ export function Canvas() {
       const first = named.find((t) => !links.some((l) => l.toTileId === t.id)) ?? named[0]
       s.markStarting(
         named.map((t) => t.id),
-        Date.now()
+        Date.now(),
+        true
       )
       s.queueInput(first.id, asPaste([goal.trim(), wf.brief].filter(Boolean).join('\n\n')), true)
     }

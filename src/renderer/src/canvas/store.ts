@@ -32,8 +32,13 @@ export interface CanvasState {
   autoSends: { linkId: string; at: number }[]
   /** Text waiting for a tile to be ready: a split worker's task, or a workflow's goal (KAO-52). */
   queued: Record<string, { text: string; enter: boolean }>
-  /** Tiles just spawned, by start time: not ready for input until their first status or STARTUP_MS. */
+  /**
+   * Tiles just spawned, by start time. Not ready for input until their PTY is up (ptyStarted), or
+   * for those in `waitStatus` their first status; at most STARTUP_MS either way.
+   */
   starting: Record<string, number>
+  /** Starting tiles running an agent that reports a status (Claude Code): wait for it, not just the PTY. */
+  waitStatus: Record<string, true>
   /** Tiles that started working and haven't delivered a result yet (Stop's idle lands before the result). */
   resultDue: Record<string, true>
 
@@ -91,14 +96,17 @@ export interface CanvasState {
   /**
    * `n` tiles to run a split on: the template first, then its workers, reusing existing ones
    * and cloning the rest (below it, same command and folder, its outgoing links copied).
-   * New workers are marked starting at `at`. Returns their ids in order.
+   * New workers are marked starting at `at`, waiting for a status if the template reports one.
+   * Returns their ids in order.
    */
   spawnWorkers(templateId: string, n: number, at: number): string[]
   /** Deliver `text` to the tile once it's ready (see startHandoffs). */
   queueInput(tileId: string, text: string, enter: boolean): void
   inputDelivered(tileId: string): void
-  /** Hold input for freshly spawned tiles until they report in (see STARTUP_MS). */
-  markStarting(tileIds: string[], at: number): void
+  /** Hold input for freshly spawned tiles until they're up (see `starting`). */
+  markStarting(tileIds: string[], at: number, waitStatus: boolean): void
+  /** The tile's PTY is running: a starting tile that doesn't wait for a status is ready PTY_SETTLE_MS after `at`. */
+  ptyStarted(tileId: string, at: number): void
 }
 
 export const MIN_TILE = { w: 320, h: 200 }
@@ -108,6 +116,11 @@ export const NEW_TILE = { w: 600, h: 420 }
 export const TILE_GAP = 96
 /** Longest a freshly spawned tile is held back from input when it never reports a status. */
 export const STARTUP_MS = 15_000
+/**
+ * How long after its PTY starts a tile without hooks is still held back: its login shell's
+ * startup can read stdin (terminal queries in a profile) and would eat a paste sent sooner.
+ */
+export const PTY_SETTLE_MS = 1500
 
 export function screenToCanvas(v: Viewport, p: Point): Point {
   return { x: (p.x - v.x) / v.zoom, y: (p.y - v.y) / v.zoom }
@@ -251,6 +264,7 @@ export function createCanvasStore(initial: Partial<Pick<CanvasState, 'viewport' 
     autoSends: [],
     queued: {},
     starting: {},
+    waitStatus: {},
     resultDue: {},
 
     panBy: (dx, dy) => set((s) => ({ viewport: { ...s.viewport, x: s.viewport.x + dx, y: s.viewport.y + dy } })),
@@ -306,6 +320,7 @@ export function createCanvasStore(initial: Partial<Pick<CanvasState, 'viewport' 
           status: withoutKey(s.status, id),
           queued: withoutKey(s.queued, id),
           starting: withoutKey(s.starting, id),
+          waitStatus: withoutKey(s.waitStatus, id),
           resultDue: withoutKey(s.resultDue, id),
           selectedLinkId: links.some((l) => l.id === s.selectedLinkId) ? s.selectedLinkId : null,
           focusedTileId: s.focusedTileId === id ? (order.at(-1) ?? null) : s.focusedTileId
@@ -390,7 +405,12 @@ export function createCanvasStore(initial: Partial<Pick<CanvasState, 'viewport' 
             : state === 'exited'
               ? withoutKey(s.resultDue, tileId)
               : s.resultDue
-        return { status: { ...s.status, [tileId]: state }, starting: withoutKey(s.starting, tileId), resultDue }
+        return {
+          status: { ...s.status, [tileId]: state },
+          starting: withoutKey(s.starting, tileId),
+          waitStatus: withoutKey(s.waitStatus, tileId),
+          resultDue
+        }
       }),
 
     setSession: (tileId, sessionId) =>
@@ -510,7 +530,12 @@ export function createCanvasStore(initial: Partial<Pick<CanvasState, 'viewport' 
           tiles,
           links,
           order: [...s.order, ...fresh],
-          starting: { ...s.starting, ...Object.fromEntries(fresh.map((id) => [id, at])) }
+          starting: { ...s.starting, ...Object.fromEntries(fresh.map((id) => [id, at])) },
+          // Workers of an agent that reports a status (Claude Code) wait for it, not just for the PTY.
+          waitStatus:
+            templateId in s.status
+              ? { ...s.waitStatus, ...Object.fromEntries(fresh.map((id) => [id, true as const])) }
+              : s.waitStatus
         }
       })
       return ids
@@ -520,8 +545,21 @@ export function createCanvasStore(initial: Partial<Pick<CanvasState, 'viewport' 
 
     inputDelivered: (tileId) => set((s) => (tileId in s.queued ? { queued: withoutKey(s.queued, tileId) } : s)),
 
-    markStarting: (tileIds, at) =>
-      set((s) => ({ starting: { ...s.starting, ...Object.fromEntries(tileIds.map((id) => [id, at])) } }))
+    markStarting: (tileIds, at, waitStatus) =>
+      set((s) => ({
+        starting: { ...s.starting, ...Object.fromEntries(tileIds.map((id) => [id, at])) },
+        waitStatus: waitStatus
+          ? { ...s.waitStatus, ...Object.fromEntries(tileIds.map((id) => [id, true as const])) }
+          : s.waitStatus
+      })),
+
+    // ponytail: a fixed settle delay; shell integration (an OSC "prompt ready" mark) would be exact.
+    ptyStarted: (tileId, at) =>
+      set((s) =>
+        tileId in s.starting && !(tileId in s.waitStatus)
+          ? { starting: { ...s.starting, [tileId]: Math.min(s.starting[tileId], at - STARTUP_MS + PTY_SETTLE_MS) } }
+          : s
+      )
   }))
 }
 

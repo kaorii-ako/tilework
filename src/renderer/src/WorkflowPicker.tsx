@@ -131,7 +131,7 @@ export function WorkflowPicker({
             </button>
           ))}
         </div>
-        <label>
+        <label className="goal-row">
           Goal (optional)
           <input
             className="goal"
