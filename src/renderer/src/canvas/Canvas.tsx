@@ -226,15 +226,24 @@ export function Canvas() {
   }
 
   /** Lay a workflow's tiles out left to right, after anything already on the canvas, then show it all. */
-  const startWorkflow = (wf: Workflow, cwd: string | undefined) => {
-    setPickerOpen(false)
+  const startWorkflow = async (wf: Workflow, cwd: string | undefined): Promise<string | void> => {
     const s = canvasStore.getState()
     const origin = s.tiles.length
       ? { x: Math.max(...s.tiles.map((t) => t.x + t.w)) + 2 * TILE_GAP, y: Math.min(...s.tiles.map((t) => t.y)) }
       : { x: 0, y: 0 }
-    const { tiles, links } = instantiateWorkflow(wf, cwd, origin)
+    const { tiles, links, worktree } = instantiateWorkflow(wf, cwd, origin)
     const named: typeof tiles = []
-    for (const t of tiles) named.push({ ...t, title: uniqueTitle(t.title, [...s.tiles, ...named]) })
+    for (const t of tiles) {
+      const tile = { ...t, title: uniqueTitle(t.title, [...s.tiles, ...named]) }
+      // One at a time: git locks the repo while it adds a worktree.
+      if (worktree.has(t.id)) {
+        const wt = await window.canvasApi.createWorktree(cwd ?? '')
+        if (!wt.ok) return `${tile.title} needs its own git worktree: ${wt.error}`
+        Object.assign(tile, { cwd: wt.path, branch: wt.branch })
+      }
+      named.push(tile)
+    }
+    setPickerOpen(false)
     s.addWorkflow(named, links)
     s.zoomToFit(surfaceSize())
   }

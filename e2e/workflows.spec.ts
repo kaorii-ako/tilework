@@ -1,5 +1,6 @@
 import { expect, test, type Page } from '@playwright/test'
-import { readFileSync } from 'node:fs'
+import { execFileSync } from 'node:child_process'
+import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { BUILTIN_WORKFLOWS } from '../src/shared/workflows'
 import { launch, newShell, dragLink, tempHome, tiles } from './app'
@@ -18,7 +19,8 @@ async function startWorkflow(page: Page, name: string) {
   await expect(picker).toHaveCount(0)
 }
 
-for (const wf of BUILTIN_WORKFLOWS) {
+// Workflows with worktree tiles need a git repo; they get their own test below.
+for (const wf of BUILTIN_WORKFLOWS.filter((w) => !w.tiles.some((t) => t.worktree))) {
   test(`starting "${wf.name}" lays out its tiles, links and instructions`, async () => {
     const { app, page } = await launch(tempHome())
     await startWorkflow(page, wf.name)
@@ -105,5 +107,46 @@ test('File → Save canvas as workflow adds a card that can be renamed and delet
   await picker.getByRole('button', { name: 'Start', exact: true }).click()
   await expect(tiles(page)).toHaveCount(4)
   expect(await page.locator('.tile-title').allInnerTexts()).toEqual(['Fixer', 'Checker', 'Fixer 2', 'Checker 2'])
+  await app.close()
+})
+
+test('"Plan → 3 Builders → Review" gives each builder its own worktree, and needs a git repo', async () => {
+  const home = tempHome()
+  const { app, page } = await launch(home)
+  const picker = page.getByRole('dialog', { name: 'Start a workflow' })
+  const pick = async () => {
+    await page.getByRole('button', { name: 'Start a workflow' }).click()
+    await picker.getByRole('radio', { name: 'Plan → 3 Builders → Review' }).click()
+    await picker.getByRole('button', { name: 'Start', exact: true }).click()
+  }
+  // The home folder isn't a repo: nothing starts, and the picker says why.
+  await pick()
+  await expect(picker.getByRole('alert')).toContainText('needs its own git worktree')
+  await expect(tiles(page)).toHaveCount(0)
+  await page.keyboard.press('Escape')
+
+  const repo = join(home, 'app')
+  execFileSync('git', ['init', '-q', repo])
+  writeFileSync(join(repo, 'a.txt'), 'a')
+  execFileSync('git', ['-C', repo, 'add', '.'])
+  execFileSync('git', ['-C', repo, '-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-qm', 'init'])
+  await page.evaluate((r) => localStorage.setItem('agent-canvas.recent-folders', JSON.stringify([r])), repo)
+  await pick()
+  await expect(picker).toHaveCount(0)
+  await expect(tiles(page)).toHaveCount(5)
+  await expect(page.locator('.link')).toHaveCount(6)
+  const branches = await page.locator('.tile-branch').allInnerTexts()
+  expect(branches).toHaveLength(3)
+  expect(new Set(branches).size).toBe(3)
+  for (const b of branches) expect(existsSync(join(home, `app-${b.split('/')[1]}`, 'a.txt'))).toBe(true)
+  // Zoomed so the whole fan is on screen.
+  const view = await page.evaluate(() => ({ width: innerWidth, height: innerHeight }))
+  for (const b of await tiles(page).evaluateAll((els) => els.map((e) => e.getBoundingClientRect().toJSON()))) {
+    expect(b.x).toBeGreaterThanOrEqual(0)
+    expect(b.y).toBeGreaterThanOrEqual(0)
+    expect(b.x + b.width).toBeLessThanOrEqual(view.width)
+    expect(b.y + b.height).toBeLessThanOrEqual(view.height)
+  }
+  await page.screenshot({ path: 'test-results/fan-out.png' })
   await app.close()
 })

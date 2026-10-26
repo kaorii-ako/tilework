@@ -57,9 +57,12 @@ export function WorkflowPicker({
   onStart,
   onClose
 }: {
-  onStart(wf: Workflow, cwd: string | undefined): void
+  /** Resolves to an error message when the workflow couldn't start (e.g. its worktrees need a git repo). */
+  onStart(wf: Workflow, cwd: string | undefined): Promise<string | void>
   onClose(): void
 }) {
+  const [error, setError] = useState('')
+  const start = async (w: Workflow) => setError((await onStart(w, folder)) || '')
   const [custom, setCustom] = useState<Workflow[]>([])
   const [picked, setPicked] = useState(BUILTIN_WORKFLOWS[0].id)
   const [menu, setMenu] = useState<{ id: string; x: number; y: number } | null>(null)
@@ -110,8 +113,11 @@ export function WorkflowPicker({
               aria-label={w.name}
               className="card"
               autoFocus={w.id === wf.id}
-              onClick={() => setPicked(w.id)}
-              onDoubleClick={() => onStart(w, folder)}
+              onClick={() => {
+                setPicked(w.id)
+                setError('')
+              }}
+              onDoubleClick={() => void start(w)}
               onContextMenu={(e) => {
                 e.preventDefault()
                 if (!w.builtIn) setMenu({ id: w.id, x: e.clientX, y: e.clientY })
@@ -129,11 +135,16 @@ export function WorkflowPicker({
             <button type="button" onClick={onClose}>
               Cancel
             </button>
-            <button type="button" className="primary" onClick={() => onStart(wf, folder)}>
+            <button type="button" className="primary" onClick={() => void start(wf)}>
               Start
             </button>
           </div>
         </div>
+        {error && (
+          <p className="launcher-error" role="alert">
+            {error}
+          </p>
+        )}
         {menu && (
           <div
             className="link-menu"

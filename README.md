@@ -11,7 +11,7 @@ Claude Code, Codex, Gemini CLI or a plain shell: each one runs in a real termina
 - **Real terminals.** xterm.js on node-pty. Your agents, your shell, your dotfiles.
 - **Live status.** A dot per tile: working, idle, or needs you (from Claude Code hooks), plus a desktop notification when an agent finishes or needs you while you're in another window.
 - **Handoffs.** Drag a line from one tile to another. When the first agent finishes, **Send →** pastes its result plus your instruction into the next.
-- **Workflows.** Start Plan → Build → Review, Build ↔ Review, Research → Write or Quick fix in one click, or save your own canvas as a workflow.
+- **Workflows.** Start Plan → Build → Review, Plan → 3 Builders → Review (each builder on its own git branch), Build ↔ Review, Research → Write or Quick fix in one click, or save your own canvas as a workflow.
 - **Worktrees.** Tick **Own git worktree** under More options and the tile runs on its own branch next to the repo, so parallel agents never edit the same checkout.
 - **Remembers your layout** between launches, and Claude Code tiles pick up their conversation where they left off.
 - **Nublet.** If you use the [Nublet](https://github.com/kaorii-ako/nublet) GNOME extension, your tiles show up in the top bar.
@@ -42,7 +42,7 @@ If node-pty fails to load after changing Node or Electron versions: `npx electro
 
 Start an agent from the empty canvas, add a second with **+ New tile**, drag from the first tile's right edge onto the second to link them, and click **Send →** on the line when the first agent finishes. The label on the line is the instruction that goes with the handoff ("Review this for bugs"); click it to change it.
 
-**Start a workflow** lays out a ready-made team in one go: Plan → Build → Review, Build ↔ Review, Research → Write, or Quick fix. Each tile runs `claude --model <x>` and every link starts as manual. **File → Save canvas as workflow…** saves your own to `~/.config/agent-canvas/workflows.json`. The **?** button in the bottom toolbar lists the rest.
+**Start a workflow** lays out a ready-made team in one go: Plan → Build → Review, **Plan → 3 Builders → Review** (the planner splits the work, each builder takes one part on its own git branch, and one reviewer checks all three), Build ↔ Review, Research → Write, or Quick fix. Each tile runs `claude --model <x>` and every link starts as manual. **File → Save canvas as workflow…** saves your own to `~/.config/agent-canvas/workflows.json`. The **?** button in the bottom toolbar lists the rest.
 
 ## Claude Code hook
 

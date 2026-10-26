@@ -15,7 +15,11 @@ const git = (cwd: string, args: string[]): Promise<string> =>
  * branch `tilework/<id>`. `folder` comes from the untrusted renderer, so it is checked first,
  * and git runs without a shell.
  */
-export async function createWorktree(folder: unknown, id = Date.now().toString(36)): Promise<WorktreeResult> {
+export async function createWorktree(
+  folder: unknown,
+  // A random tail, so several tiles started in the same millisecond (a fan-out workflow) never collide.
+  id = Date.now().toString(36) + Math.random().toString(36).slice(2, 5)
+): Promise<WorktreeResult> {
   if (typeof folder !== 'string' || !isAbsolute(folder) || folder.length > 4096 || !isDirectory(folder))
     return { ok: false, error: 'Pick a folder first.' }
   try {

@@ -12,6 +12,8 @@ export interface WorkflowTile {
   shell?: boolean
   /** Shorthand for claude: appends `--model <model>` to args. */
   model?: string
+  /** Start this tile in its own git worktree (KAO-50), so parallel builders don't share a checkout. */
+  worktree?: boolean
   x: number
   y: number
   w: number
@@ -49,6 +51,12 @@ const claude = (key: string, title: string, model: string, i: number): WorkflowT
   w: W,
   h: H
 })
+/** The i-th of `n` tiles stacked in a column at `col`, centred on a row tile's height. */
+const stacked = (t: WorkflowTile, col: number, i: number, n: number): WorkflowTile => ({
+  ...t,
+  x: col * (W + GAP),
+  y: i * (H + GAP / 4) - ((n - 1) * (H + GAP / 4)) / 2
+})
 const manual = (from: string, to: string, instruction: string): WorkflowLink => ({
   from,
   to,
@@ -70,6 +78,36 @@ export const BUILTIN_WORKFLOWS: Workflow[] = [
     links: [
       manual('plan', 'build', "Implement this plan. Ask if anything's unclear."),
       manual('build', 'review', "Review this change for bugs, missing tests and anything that doesn't match the plan.")
+    ]
+  },
+  {
+    id: 'plan-fan-out-review',
+    name: 'Plan → 3 Builders → Review',
+    description:
+      'Ask the planner to split the work into 3 parts. Each builder takes one part on its own git branch, then one reviewer checks them all.',
+    builtIn: true,
+    tiles: [
+      claude('plan', 'Planner', 'opus', 0),
+      ...[1, 2, 3].map((n, i) =>
+        stacked({ ...claude(`build${n}`, `Builder ${n}`, 'sonnet', 0), worktree: true }, 1, i, 3)
+      ),
+      claude('review', 'Reviewer', 'opus', 2)
+    ],
+    links: [
+      ...[1, 2, 3].map((n) =>
+        manual(
+          'plan',
+          `build${n}`,
+          `Do only part ${n} of this plan, in this worktree, and commit it. Ask if anything's unclear.`
+        )
+      ),
+      ...[1, 2, 3].map((n) =>
+        manual(
+          `build${n}`,
+          'review',
+          `Builder ${n} finished its part on its own branch (see git worktree list). Review that branch against the plan for bugs and missing tests.`
+        )
+      )
     ]
   },
   {
@@ -115,8 +153,10 @@ function parseTile(t: any): WorkflowTile | null {
     return null
   if (t.shell !== undefined && typeof t.shell !== 'boolean') return null
   if (t.model !== undefined && !(str(t.model, 100) && /^[\w.:-]+$/.test(t.model))) return null
+  if (t.worktree !== undefined && typeof t.worktree !== 'boolean') return null
   const tile: WorkflowTile = { key: t.key, title: t.title, x: t.x, y: t.y, w: t.w, h: t.h }
-  for (const k of ['command', 'args', 'shell', 'model'] as const) if (t[k] !== undefined) (tile as any)[k] = t[k]
+  for (const k of ['command', 'args', 'shell', 'model', 'worktree'] as const)
+    if (t[k] !== undefined) (tile as any)[k] = t[k]
   return tile
 }
 
@@ -162,7 +202,7 @@ export function instantiateWorkflow(
   cwd: string | undefined,
   origin: { x: number; y: number },
   newId: () => string = () => crypto.randomUUID()
-): { tiles: Tile[]; links: Link[] } {
+): { tiles: Tile[]; links: Link[]; worktree: Set<string> } {
   const ids = new Map(wf.tiles.map((t) => [t.key, newId()]))
   const tiles = wf.tiles.map((t): Tile => {
     const args = t.model ? [...(t.args ?? []), '--model', t.model] : t.args
@@ -180,7 +220,8 @@ export function instantiateWorkflow(
     mode: l.mode, // built-ins are all manual; a saved workflow keeps what was opted into
     ...(l.instruction.trim() && { instruction: l.instruction })
   }))
-  return { tiles, links }
+  const worktree = new Set(wf.tiles.filter((t) => t.worktree).map((t) => ids.get(t.key)!))
+  return { tiles, links, worktree }
 }
 
 /** The current canvas as a custom workflow: tiles keep their commands and relative layout, links their instructions. */
@@ -197,6 +238,7 @@ export function workflowFromCanvas(name: string, tiles: Tile[], links: Link[], i
       if (t.command) wt.command = t.command
       if (t.args) wt.args = t.args
       if (t.shell) wt.shell = true
+      if (t.branch) wt.worktree = true
       return wt
     }),
     links: links

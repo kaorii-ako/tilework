@@ -11,6 +11,7 @@ describe('built-in workflows', () => {
   it('are all valid, manual, and laid out left to right', () => {
     expect(BUILTIN_WORKFLOWS.map((w) => w.name)).toEqual([
       'Plan → Build → Review',
+      'Plan → 3 Builders → Review',
       'Build ↔ Review',
       'Research → Write',
       'Quick fix'
@@ -21,6 +22,32 @@ describe('built-in workflows', () => {
       const xs = wf.tiles.map((t) => t.x)
       expect(xs).toEqual([...xs].sort((a, b) => a - b))
     }
+  })
+
+  it('Plan → 3 Builders → Review fans out to three worktree builders that all feed one reviewer', () => {
+    const wf = BUILTIN_WORKFLOWS.find((w) => w.id === 'plan-fan-out-review')!
+    expect(wf.tiles.filter((t) => t.worktree).map((t) => t.title)).toEqual(['Builder 1', 'Builder 2', 'Builder 3'])
+    expect(wf.links.filter((l) => l.from === 'plan').map((l) => l.to)).toEqual(['build1', 'build2', 'build3'])
+    expect(wf.links.filter((l) => l.to === 'review').map((l) => l.from)).toEqual(['build1', 'build2', 'build3'])
+    // No two tiles overlap.
+    for (const a of wf.tiles)
+      for (const b of wf.tiles)
+        if (a !== b) expect(a.x + a.w <= b.x || b.x + b.w <= a.x || a.y + a.h <= b.y || b.y + b.h <= a.y).toBe(true)
+    const { tiles, worktree } = instantiateWorkflow(wf, '/repo', { x: 0, y: 0 })
+    expect(tiles.filter((t) => worktree.has(t.id)).map((t) => t.title)).toEqual(['Builder 1', 'Builder 2', 'Builder 3'])
+  })
+
+  it('keeps the worktree flag through parsing, and saving a canvas marks tiles that had a branch', () => {
+    expect(
+      parseWorkflow({ ...BUILTIN_WORKFLOWS[0], tiles: [{ ...BUILTIN_WORKFLOWS[0].tiles[0], worktree: 'yes' }] })
+    ).toBeNull()
+    const saved = workflowFromCanvas(
+      'x',
+      [{ id: 'a', title: 'A', branch: 'tilework/1', x: 0, y: 0, w: 1, h: 1 }],
+      [],
+      'w'
+    )
+    expect(saved.tiles[0].worktree).toBe(true)
   })
 
   it('Plan → Build → Review runs opus, sonnet, opus with the right instructions', () => {
