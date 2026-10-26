@@ -1,6 +1,6 @@
 # Handoff
 
-Updated 2026-10-26, after Tilework 0.3.0.
+Updated 2026-10-26, after Tilework 0.4.0.
 
 ## Where things stand
 - **Public repo:** https://github.com/kaorii-ako/tilework. The history was rewritten to the noreply email with no Claude co-author lines. The old private repo, kaorii-ako/agent-canvas, keeps its PR history and is the local remote `old-private`. Don't make it public: its PR pages show the school email.
@@ -20,20 +20,23 @@ Updated 2026-10-26, after Tilework 0.3.0.
 
 - **v0.3.0 is out:** KAO-53 adds the fan-out workflow "Plan → 3 Builders → Review", where workflow tiles can set `worktree: true`.
 
-## In flight (2026-10-26)
-- **PR #13, KAO-52: dynamic workflows.**
+## Since 0.3.0
+- **v0.4.0:** KAO-52 (#13) and KAO-54 (#14), merged by fast-forward.
+- **Dynamic workflows (KAO-52):**
   - Conditional routes (when/otherwise), join, split into parallel workers, router (`ROUTE:`), start with a goal.
-  - New built-ins: Plan → Parallel build → Review, and Triage. Build ↔ Review now stops on APPROVED.
-  - 168 unit tests and new e2e tests pass. Not yet run as a full loop with real Claude Code.
-- **KAO-54 PR: team mode phase 1.** Stacked on #13, so merge #13 first.
-  - Share a canvas peer to peer (WebRTC) with an invite code. Signaling goes through ntfy.sh, encrypted. Free, no server.
+  - New built-ins: Plan → Parallel build → Review, and Triage. Build ↔ Review stops on APPROVED.
+  - Not yet run as a full loop with real Claude Code.
+- **Team mode phase 1 (KAO-54):**
+  - Share a canvas peer to peer (WebRTC) with an invite code. Signaling goes through ntfy.sh, sealed with AES-GCM. Free, no server.
   - The host approves each join, and teammates' tiles are live, read-only mirrors.
-  - 195 unit tests pass. The two-instance e2e passes against a local fake ntfy and against the real ntfy.sh.
-  - Not tested: two different home networks, where strict NATs need TURN (KAO-57).
-- Design doc: Linear "Team mode design". Next phases: KAO-55 (cross-person handoffs and chat), KAO-56 (overlap warnings), KAO-57 (relay and polish).
+  - The two-instance e2e passes against a fake ntfy and the real ntfy.sh. Not tested across two different networks; strict NATs need TURN (KAO-57).
+- **Team mode next:** design doc in Linear, "Team mode design". KAO-55 (cross-person handoffs and chat), KAO-56 (overlap warnings), KAO-57 (relay and polish).
 
 ## Next steps
-0. **Try both PRs by hand.** Start Plan → Parallel build → Review with a goal. Then share a canvas with a second machine: Share, send the code, the teammate joins, you Allow. Merge #13, then the KAO-54 PR. Don't merge before the Product Hunt day is over.
+0. **Try 0.4.0 by hand.**
+   - Check that the CI AppImage for v0.4.0 built.
+   - Start Plan → Parallel build → Review with a goal.
+   - Share a canvas with a second machine on another network, to see whether peer to peer gets through.
 1. **Product Hunt: scheduled.** It goes live at 00:01 PT on Monday 2026-10-26 (14:01 in Bangkok), at https://www.producthunt.com/products/tilework. On launch day: answer every comment, and post the Show HN the next day (`docs/LAUNCH.md`). The pre-launch dashboard suggests a website badge and a forum thread.
    Old note: everything is ready in `docs/LAUNCH.md` and `docs/launch/`. Claude Code's permission system blocked Claude in Chrome from opening producthunt.com/posts/new ("Real-World Transactions"). Tawin either allows that action, then Claude fills in the form in Browser 2 and stops before the final click, or Tawin submits it by hand.
 2. **GitHub email privacy:** Settings → Emails: "Keep my email addresses private" and "Block command line pushes that expose my email".
