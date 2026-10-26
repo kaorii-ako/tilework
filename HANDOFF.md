@@ -1,6 +1,6 @@
 # Handoff
 
-Updated 2026-10-25, after Tilework 0.2.0.
+Updated 2026-10-26, after Tilework 0.3.0.
 
 ## Where things stand
 - **Public repo:** https://github.com/kaorii-ako/tilework. The history was rewritten to the noreply email with no Claude co-author lines. The old private repo, kaorii-ako/agent-canvas, keeps its PR history and is the local remote `old-private`. Don't make it public: its PR pages show the school email.
@@ -18,6 +18,8 @@ Updated 2026-10-25, after Tilework 0.2.0.
   - KAO-51: demo GIF and video from a real run, plus Product Hunt gallery images in `docs/launch/`.
 - **Merging:** PRs are merged by fast-forwarding main locally and pushing. GitHub's squash and rebase merges stamp the account's primary (school) email until email privacy is on.
 
+- **v0.3.0 is out:** KAO-53 adds the fan-out workflow "Plan → 3 Builders → Review", where workflow tiles can set `worktree: true`.
+
 ## Next steps
 1. **Product Hunt: scheduled.** It goes live at 00:01 PT on Monday 2026-10-26 (14:01 in Bangkok), at https://www.producthunt.com/products/tilework. On launch day: answer every comment, and post the Show HN the next day (`docs/LAUNCH.md`). The pre-launch dashboard suggests a website badge and a forum thread.
    Old note: everything is ready in `docs/LAUNCH.md` and `docs/launch/`. Claude Code's permission system blocked Claude in Chrome from opening producthunt.com/posts/new ("Real-World Transactions"). Tawin either allows that action, then Claude fills in the form in Browser 2 and stops before the final click, or Tawin submits it by hand.
@@ -31,8 +33,8 @@ Updated 2026-10-25, after Tilework 0.2.0.
 - **Lockfile:** this PR also fixes `package-lock.json`, whose license field said UNLICENSED.
 
 ## Tests
-- `npm test`: 134 unit tests.
-- `npm run e2e`: 18 Playwright tests. `REAL_CLAUDE=1 DEMO_FRAMES=<dir> npx playwright test real-claude -g Plan` re-records the demo frames.
+- `npm test`: 136 unit tests.
+- `npm run e2e`: 19 Playwright tests. `REAL_CLAUDE=1 DEMO_FRAMES=<dir> npx playwright test real-claude -g Plan` re-records the demo frames.
 - `npm run dist`, then `PACKAGED=1 npx playwright test packaged`.
 
 ## Watch out for
